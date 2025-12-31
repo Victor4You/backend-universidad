@@ -56,7 +56,7 @@ export class AuthService {
       }
 
       // --- ASIGNACIÓN DE ROLES ---
-      const admins = ['JACL'];
+      const admins = ['JACL', 'VMSJ'];
       const assignedRole = admins.includes(externalUser.usuario)
         ? 'admin'
         : 'estudiante';
@@ -100,7 +100,7 @@ export class AuthService {
       );
 
       const user = response.data;
-      const admins = ['JACL'];
+      const admins = ['JACL', 'VMSJ'];
 
       return {
         ...user,
