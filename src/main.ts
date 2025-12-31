@@ -15,6 +15,8 @@ function setupApp(instance: INestApplication): void {
     origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
+    // ESTO ES IMPORTANTE PARA LOCALTUNNEL:
+    allowedHeaders: ['Content-Type', 'Authorization', 'Bypass-Tunnel-Reminder'],
   });
 }
 
