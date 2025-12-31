@@ -34,7 +34,7 @@ export class AuthService {
           'User-Agent': 'Vercel-Serverless-Function',
           'Bypass-Tunnel-Reminder': 'true',
         },
-        timeout: 30000,
+        timeout: 60000,
       });
 
       const externalUser = response.data;
