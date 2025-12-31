@@ -31,6 +31,7 @@ export class AuthService {
           Authorization: `Bearer ${this.MASTER_TOKEN}`,
           Accept: 'application/json',
         },
+        timeout: 30000,
       });
 
       const externalUser = response.data;
