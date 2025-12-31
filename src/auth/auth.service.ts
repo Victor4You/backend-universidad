@@ -28,8 +28,10 @@ export class AuthService {
 
       const response = await axios.get<UniversidadUser>(url, {
         headers: {
-          Authorization: `Bearer ${this.MASTER_TOKEN}`,
+          Authorization: `Bearer ${this.MASTER_TOKEN.trim()}`,
           Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'Vercel-Serverless-Function', // Algunos servidores bloquean peticiones sin User-Agent
         },
         timeout: 30000,
       });
@@ -72,7 +74,8 @@ export class AuthService {
       }
 
       if (axios.isAxiosError(error)) {
-        console.error('DETALLE DEL ERROR:', error.response?.data);
+        console.error('ESTADO:', error.response?.status);
+        console.error('DATOS DEL ERROR:', JSON.stringify(error.response?.data));
         if (error.response?.status === 404) {
           throw new UnauthorizedException(
             'El usuario no fue encontrado en la base de datos universitaria',
