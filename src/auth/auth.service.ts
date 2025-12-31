@@ -31,7 +31,8 @@ export class AuthService {
           Authorization: `Bearer ${this.MASTER_TOKEN.trim()}`,
           Accept: 'application/json',
           'Content-Type': 'application/json',
-          'User-Agent': 'Vercel-Serverless-Function', // Algunos servidores bloquean peticiones sin User-Agent
+          'User-Agent': 'Vercel-Serverless-Function',
+          'Bypass-Tunnel-Reminder': 'true',
         },
         timeout: 30000,
       });
