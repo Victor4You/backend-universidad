@@ -17,7 +17,8 @@ interface UniversidadUser {
 
 @Injectable()
 export class AuthService {
-  private readonly EXTERNAL_API_URL = 'http://192.168.13.170:3201/v1';
+  private readonly EXTERNAL_API_URL =
+    process.env.EXTERNAL_API_URL || 'https://tame-yak-77.loca.lt/v1';
   private readonly MASTER_TOKEN =
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
 
