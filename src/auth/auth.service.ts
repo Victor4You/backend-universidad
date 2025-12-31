@@ -72,6 +72,7 @@ export class AuthService {
       }
 
       if (axios.isAxiosError(error)) {
+        console.error('DETALLE DEL ERROR:', error.response?.data);
         if (error.response?.status === 404) {
           throw new UnauthorizedException(
             'El usuario no fue encontrado en la base de datos universitaria',
