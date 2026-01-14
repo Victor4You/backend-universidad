@@ -12,13 +12,12 @@ import { CoursesModule } from './courses/courses.module';
       type: 'postgres',
       // Prioriza las variables de Vercel, si no existen usa tus valores locales
       host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT, 10) || 5433,
+      port: parseInt(process.env.DB_PORT || '5433', 10),
       username: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '123',
       database: process.env.DB_NAME || 'universidad_db',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, 
-      // SSL obligatorio en producción (Vercel/Nube) y desactivado en local
+      synchronize: true,
       ssl: process.env.NODE_ENV === 'production' 
         ? { rejectUnauthorized: false } 
         : false,
