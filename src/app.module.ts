@@ -6,17 +6,24 @@ import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
 
+// Definimos constantes fuera para asegurar los tipos
+const dbHost = process.env.DB_HOST || 'localhost';
+const dbPort = process.env.DB_PORT || '5433';
+const dbUser = process.env.DB_USER || 'postgres';
+const dbPass = process.env.DB_PASSWORD || '123';
+const dbName = process.env.DB_NAME || 'universidad_db';
+
 @Module({
   imports: [
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: (process.env.DB_HOST as string) || 'localhost',
-      port: parseInt((process.env.DB_PORT as string) || '5433', 10),
-      username: (process.env.DB_USER as string) || 'postgres',
-      password: (process.env.DB_PASSWORD as string) || '123',
-      database: (process.env.DB_NAME as string) || 'universidad_db',
+      host: dbHost,
+      port: parseInt(dbPort, 10),
+      username: dbUser,
+      password: dbPass,
+      database: dbName,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true, // Esto creará las tablas automáticamente en Neon
+      synchronize: true,
       ssl: process.env.NODE_ENV === 'production' 
         ? { rejectUnauthorized: false } 
         : false,
