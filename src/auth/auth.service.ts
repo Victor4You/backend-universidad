@@ -1,8 +1,12 @@
-// src/auth/auth.service.ts
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import axios from 'axios';
-import md5 from 'md5'; // CAMBIO: Importación por defecto para evitar el error "not callable"
+import md5 from 'md5';
 import { LoginDto } from './auth.controller';
+export interface RegisterDto {
+  username?: string;
+  password?: string;
+  [key: string]: any;
+}
 
 interface UniversidadUser {
   id: number;
@@ -12,85 +16,63 @@ interface UniversidadUser {
   password: string;
   empleado?: {
     email?: string;
+    departamento?: { nombre: string };
+    sucursalActiva?: { clave: string };
   };
 }
 
 @Injectable()
 export class AuthService {
-  // AJUSTE LOCAL/VERCEL:
-  // Usa la variable de Vercel si existe, de lo contrario usa la IP local de la oficina
   private readonly EXTERNAL_API_URL =
     process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
-
   private readonly MASTER_TOKEN =
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
 
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
     try {
       const url = `${this.EXTERNAL_API_URL}/usuarios/usuario/${loginDto.username}`;
-
       const response = await axios.get<UniversidadUser>(url, {
-        headers: {
-          Authorization: `Bearer ${this.MASTER_TOKEN.trim()}`,
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'Vercel-Serverless-Function',
-          'Bypass-Tunnel-Reminder': 'true',
-        },
+        headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
         timeout: 60000,
       });
 
       const externalUser = response.data;
-
-      // --- VALIDACIÓN DE USUARIO EXISTENTE ---
       if (!externalUser || !externalUser.usuario) {
-        throw new UnauthorizedException(
-          'El nombre de usuario no existe en el sistema',
-        );
+        throw new UnauthorizedException('El nombre de usuario no existe');
       }
 
-      // --- VERIFICACIÓN DE CONTRASEÑA MD5 ---
       const inputPasswordMd5 = md5(loginDto.password);
       if (inputPasswordMd5 !== externalUser.password) {
-        // Mensaje específico para contraseña
+        throw new UnauthorizedException('La contraseña es incorrecta');
+      }
+
+      const isGerente =
+        externalUser.empleado?.departamento?.nombre === 'GERENCIA';
+      const role = isGerente ? 'admin' : 'estudiante';
+      const isOficina =
+        externalUser.empleado?.sucursalActiva?.clave === 'OFICINA';
+
+      if (!isOficina && !isGerente) {
         throw new UnauthorizedException(
-          'La contraseña ingresada es incorrecta',
+          'Tu sucursal no tiene acceso a esta plataforma',
         );
       }
 
-      // --- ASIGNACIÓN DE ROLES ---
-      const admins = ['JACL', 'VMSJ'];
-      const assignedRole = admins.includes(externalUser.usuario)
-        ? 'admin'
-        : 'estudiante';
-
+      // Devolvemos un objeto plano que coincida con lo que el Front mapeará
       return {
-        ...externalUser,
+        id: externalUser.id,
+        usuario: externalUser.usuario,
+        nombre: externalUser.nombre,
+        apellido: externalUser.apellido,
         name: `${externalUser.nombre} ${externalUser.apellido}`.trim(),
-        role: assignedRole,
+        role: role,
         email: externalUser.empleado?.email || '',
-        token: 'token_sesion_local_generado',
+        token: 'token_memoria_activa', // Solo en memoria
       };
     } catch (error: unknown) {
-      // Si el error ya es una UnauthorizedException (como el de contraseña), lo relanzamos tal cual
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-
-      if (axios.isAxiosError(error)) {
-        console.error('ESTADO:', error.response?.status);
-        console.error('DATOS DEL ERROR:', JSON.stringify(error.response?.data));
-        if (error.response?.status === 404) {
-          throw new UnauthorizedException(
-            'El usuario no fue encontrado en la base de datos universitaria',
-          );
-        }
-        console.error('Error de API Externa:', error.message);
-      }
-
-      // Mensaje genérico de caída de sistema
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException(
-        'Error de conexión con el servidor de la universidad',
+        'Error de conexión con el servidor universitario',
       );
     }
   }
@@ -101,22 +83,63 @@ export class AuthService {
         `${this.EXTERNAL_API_URL}/usuarios/usuario/${username}`,
         { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
       );
-
       const user = response.data;
-      const admins = ['JACL', 'VMSJ'];
+      const isGerente = user.empleado?.departamento?.nombre === 'GERENCIA';
 
       return {
-        ...user,
+        id: user.id,
+        usuario: user.usuario,
         name: `${user.nombre} ${user.apellido}`.trim(),
-        role: admins.includes(user.usuario) ? 'admin' : 'estudiante',
+        role: isGerente ? 'admin' : 'estudiante',
+        email: user.empleado?.email || '',
       };
     } catch {
       return null;
     }
   }
 
-  register(...args: any[]): Promise<Record<string, any>> {
-    if (args.length > 0) console.log('Registro bloqueado');
-    return Promise.resolve({ message: 'Registro no disponible' });
+  async searchUsersPartial(term: string): Promise<any[]> {
+    try {
+      const response = await axios.get<UniversidadUser[]>(
+        `${this.EXTERNAL_API_URL}/usuarios/sucursal/1`,
+        {
+          headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` },
+          timeout: 5000,
+        },
+      );
+
+      if (Array.isArray(response.data)) {
+        return response.data
+          .filter(
+            (user) =>
+              user.empleado !== null &&
+              (user.usuario?.toLowerCase().includes(term.toLowerCase()) ||
+                user.nombre?.toLowerCase().includes(term.toLowerCase())),
+          )
+          .map((user) => ({
+            id: user.id,
+            usuario: user.usuario,
+            nombre: user.nombre,
+            apellido: user.apellido,
+            name: `${user.nombre} ${user.apellido}`.trim(),
+            role:
+              user.empleado?.departamento?.nombre === 'GERENCIA'
+                ? 'admin'
+                : 'estudiante',
+          }));
+      }
+      return [];
+    } catch {
+      if (term.length < 2) return [];
+      const exact = await this.getUserProfile(term);
+      return exact ? [exact] : [];
+    }
+  }
+
+  register(registerDto: RegisterDto): Promise<Record<string, any>> {
+    return Promise.resolve({
+      message:
+        'Registro no disponible. Los usuarios se gestionan a través del sistema universitario central.',
+    });
   }
 }
