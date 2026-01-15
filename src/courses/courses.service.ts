@@ -1,64 +1,69 @@
-// src/courses/courses.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CourseProgress } from './entities/course-progress.entity';
+import { Course } from './entities/course.entity';
+import { CourseCompletion } from './entities/course-completion.entity';
+
+// 1. Definimos la interfaz para los datos de entrada
+interface RegisterCompletionData {
+  userId: string | number;
+  courseId: string | number;
+  score: number;
+  survey?: Record<string, number>; // Cambiamos 'any' por una estructura de objeto
+}
 
 @Injectable()
 export class CoursesService {
   constructor(
-    @InjectRepository(CourseProgress)
-    private progressRepo: Repository<CourseProgress>,
+    @InjectRepository(Course)
+    private courseRepository: Repository<Course>,
+    @InjectRepository(CourseCompletion)
+    private completionRepository: Repository<CourseCompletion>,
   ) {}
 
-  // REGISTRAR INTENTO (Nuevo método para auditoría o control de intentos)
-  async registerAttempt(data: {
-    userId: number;
-    courseId: string;
-    score: number;
-  }) {
-    // Aquí podrías crear una nueva tabla "CourseAttempts" si quieres historial,
-    // pero por ahora usaremos la lógica de actualizar el progreso actual
-    let progress = await this.progressRepo.findOne({
-      where: { userId: data.userId, courseId: data.courseId },
+  async findAll() {
+    return await this.courseRepository.find({
+      order: { id: 'ASC' },
     });
-
-    if (!progress) {
-      progress = this.progressRepo.create({ ...data, survey: null });
-    } else {
-      progress.score = data.score;
-    }
-
-    return await this.progressRepo.save(progress);
   }
 
-  // REGISTRAR COMPLETADO Y ENCUESTA
-  async registerCompletion(data: {
-    userId: number;
-    courseId: string;
-    score: number;
-    survey: any;
-  }) {
-    let progress = await this.progressRepo.findOne({
-      where: { userId: data.userId, courseId: data.courseId },
-    });
-
-    if (!progress) {
-      progress = this.progressRepo.create(data);
-    } else {
-      progress.score = data.score;
-      progress.survey = data.survey;
-      progress.completedAt = new Date();
-    }
-
-    return await this.progressRepo.save(progress);
-  }
-
-  async getUserProgress(userId: number): Promise<string[]> {
-    const results = await this.progressRepo.find({
+  async findProgress(userId: number) {
+    const completions = await this.completionRepository.find({
       where: { userId },
-      select: ['courseId'],
     });
-    return results.map((item) => item.courseId);
+    return completions.map((c) => c.courseId);
+  }
+
+  async create(data: Partial<Course>) {
+    const newCourse = this.courseRepository.create(data);
+    return await this.courseRepository.save(newCourse);
+  }
+
+  async update(id: string, data: Partial<Course>) {
+    await this.courseRepository.update(id, data);
+    return { message: 'Curso actualizado' };
+  }
+
+  async registerCompletion(data: RegisterCompletionData) {
+    const existing = await this.completionRepository.findOne({
+      where: {
+        userId: Number(data.userId),
+        courseId: String(data.courseId),
+      },
+    });
+
+    if (existing && existing.score >= 90) {
+      return existing;
+    }
+
+    // 2. Aquí es donde estaba el error: tipamos explícitamente el objeto de creación
+    const completion = this.completionRepository.create({
+      userId: Number(data.userId),
+      courseId: String(data.courseId),
+      score: data.score,
+      survey: data.survey as Record<string, any>, // Usamos un 'type assertion' seguro
+    });
+
+    return await this.completionRepository.save(completion);
   }
 }

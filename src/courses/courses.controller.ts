@@ -1,32 +1,36 @@
-import { Controller, Post, Get, Body, Query } from '@nestjs/common';
+// src/courses/courses.controller.ts
+import { Controller, Get, Post, Body, Put, Param, Query } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
-  @Post('register-attempt')
-  async registerAttempt(
-    @Body() body: { userId: number; courseId: string; score: number },
-  ) {
-    return await this.coursesService.registerAttempt(body);
+  // 1. OBTENER TODOS LOS CURSOS (Para todos los roles)
+  @Get()
+  async findAll() {
+    return await this.coursesService.findAll();
+  }
+  @Post('register-completion') // <--- ESTA ES LA RUTA QUE FALTABA
+  async registerCompletion(@Body() completionData: any) {
+    return await this.coursesService.registerCompletion(completionData);
   }
 
-  @Post('register-completion')
-  async register(
-    @Body()
-    body: {
-      userId: number;
-      courseId: string;
-      score: number;
-      survey: any;
-    },
-  ) {
-    return await this.coursesService.registerCompletion(body);
-  }
-
+  // 2. OBTENER PROGRESO DEL ESTUDIANTE
   @Get('user-progress')
   async getProgress(@Query('userId') userId: string) {
-    return await this.coursesService.getUserProgress(Number(userId));
+    return await this.coursesService.findProgress(Number(userId));
+  }
+
+  // 3. CREAR NUEVO CURSO (Desde el botón "Nuevo Curso")
+  @Post()
+  async create(@Body() courseData: any) {
+    return await this.coursesService.create(courseData);
+  }
+
+  // 4. ACTUALIZAR CURSO
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() updateData: any) {
+    return await this.coursesService.update(id, updateData);
   }
 }
