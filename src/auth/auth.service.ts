@@ -86,12 +86,16 @@ export class AuthService {
       const user = response.data;
       const isGerente = user.empleado?.departamento?.nombre === 'GERENCIA';
 
+      // DEVOLVEMOS EL OBJETO COMPLETO PARA QUE EL FRONT TENGA DATOS
       return {
         id: user.id,
         usuario: user.usuario,
+        nombre: user.nombre, // Agregado
+        apellido: user.apellido, // Agregado
         name: `${user.nombre} ${user.apellido}`.trim(),
         role: isGerente ? 'admin' : 'estudiante',
         email: user.empleado?.email || '',
+        empleado: user.empleado,
       };
     } catch {
       return null;
