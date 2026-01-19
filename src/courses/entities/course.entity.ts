@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { CourseEnrollment } from './course-enrollment.entity';
 
 @Entity('courses')
 export class Course {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn() // o @PrimaryColumn() según tu diseño
   id: number;
 
   @Column()
@@ -35,4 +36,7 @@ export class Course {
 
   @Column({ default: 30 })
   duracionExamen: number;
+
+  @OneToMany(() => CourseEnrollment, (enrollment) => enrollment.course)
+  estudiantesInscritos: CourseEnrollment[];
 }

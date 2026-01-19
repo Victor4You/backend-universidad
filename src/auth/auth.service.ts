@@ -17,7 +17,10 @@ interface UniversidadUser {
   empleado?: {
     email?: string;
     departamento?: { nombre: string };
-    sucursalActiva?: { clave: string };
+    sucursalActiva?: {
+      clave: string;
+      nombre: string; // <--- AGREGAR ESTO
+    };
   };
 }
 
@@ -102,6 +105,32 @@ export class AuthService {
     }
   }
 
+  async getUsersBySucursal(sucursalId: string): Promise<any[]> {
+    try {
+      // Agregamos <UniversidadUser[]> aquí
+      const response = await axios.get<UniversidadUser[]>(
+        `${this.EXTERNAL_API_URL}/usuarios/sucursal/${sucursalId}`,
+        { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
+      );
+
+      if (Array.isArray(response.data)) {
+        return response.data.map((user: UniversidadUser) => ({
+          // Tipamos el map
+          id: user.id,
+          usuario: user.usuario,
+          nombre: user.nombre,
+          apellido: user.apellido,
+          name: `${user.nombre} ${user.apellido}`.trim(),
+          sucursal: user.empleado?.sucursalActiva?.nombre || 'Desconocida',
+        }));
+      }
+      return [];
+    } catch (error) {
+      console.error('Error buscando por sucursal:', error);
+      return [];
+    }
+  }
+
   async searchUsersPartial(term: string): Promise<any[]> {
     try {
       const response = await axios.get<UniversidadUser[]>(
@@ -140,10 +169,10 @@ export class AuthService {
     }
   }
 
-  register(registerDto: RegisterDto): Promise<Record<string, any>> {
+  register(_registerDto: RegisterDto): Promise<Record<string, any>> {
+    // Agregamos guion bajo
     return Promise.resolve({
-      message:
-        'Registro no disponible. Los usuarios se gestionan a través del sistema universitario central.',
+      message: 'Gestión centralizada.',
     });
   }
 }

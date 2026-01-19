@@ -1,34 +1,67 @@
 // src/courses/courses.controller.ts
 import { Controller, Get, Post, Body, Put, Param, Query } from '@nestjs/common';
 import { CoursesService } from './courses.service';
+import type { RegisterCompletionData } from './courses.service';
 
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
-  // 1. OBTENER TODOS LOS CURSOS (Para todos los roles)
   @Get()
   async findAll() {
     return await this.coursesService.findAll();
   }
-  @Post('register-completion') // <--- ESTA ES LA RUTA QUE FALTABA
-  async registerCompletion(@Body() completionData: any) {
-    return await this.coursesService.registerCompletion(completionData);
-  }
 
-  // 2. OBTENER PROGRESO DEL ESTUDIANTE
+  // --- RUTAS ESTÁTICAS O CON PREFIJOS ESPECÍFICOS (DEBEN IR PRIMERO) ---
+
   @Get('user-progress')
   async getProgress(@Query('userId') userId: string) {
     return await this.coursesService.findProgress(Number(userId));
   }
 
-  // 3. CREAR NUEVO CURSO (Desde el botón "Nuevo Curso")
+  @Get('my-courses/:userId')
+  async getMyCourses(@Param('userId') userId: string) {
+    return await this.coursesService.findCoursesByUser(Number(userId));
+  }
+
+  @Get('enrolled/:userId')
+  async getEnrolledCourses(@Param('userId') userId: string) {
+    return await this.coursesService.findCoursesByUser(Number(userId));
+  }
+
+  @Get('users/sucursal/:sucursalId')
+  async findUsers(
+    @Param('sucursalId') sucursalId: string,
+    @Query('q') q: string,
+  ) {
+    return await this.coursesService.findUsersBySucursal(sucursalId, q);
+  }
+
+  @Post('register-completion')
+  async registerCompletion(@Body() completionData: RegisterCompletionData) {
+    return await this.coursesService.registerCompletion(completionData);
+  }
+
+  // --- RUTAS CON PARÁMETROS DINÁMICOS :id (DEBEN IR AL FINAL) ---
+
+  @Get(':id/students')
+  async getEnrolledStudents(@Param('id') id: string) {
+    return this.coursesService.getEnrolledStudents(id);
+  }
+
+  @Post(':id/students')
+  async assignStudents(
+    @Param('id') courseId: string,
+    @Body('userIds') userIds: number[],
+  ) {
+    return await this.coursesService.assignUsersToCourse(courseId, userIds);
+  }
+
   @Post()
   async create(@Body() courseData: any) {
     return await this.coursesService.create(courseData);
   }
 
-  // 4. ACTUALIZAR CURSO
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateData: any) {
     return await this.coursesService.update(id, updateData);
