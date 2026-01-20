@@ -210,4 +210,12 @@ export class CoursesService {
       }));
     }
   }
+  async remove(id: string) {
+    // Borramos dependencias para evitar errores de llave foránea
+    await this.enrollmentRepository.delete({ courseId: id });
+    await this.completionRepository.delete({ courseId: id });
+
+    // Borramos el curso
+    return await this.courseRepository.delete(id);
+  }
 }

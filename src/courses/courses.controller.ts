@@ -1,5 +1,14 @@
 // src/courses/courses.controller.ts
-import { Controller, Get, Post, Body, Put, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Put,
+  Param,
+  Query,
+  Delete,
+} from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import type { RegisterCompletionData } from './courses.service';
 
@@ -65,5 +74,11 @@ export class CoursesController {
   @Put(':id')
   async update(@Param('id') id: string, @Body() updateData: any) {
     return await this.coursesService.update(id, updateData);
+  }
+
+  // REEMPLAZA LA SEGUNDA FUNCIÓN 'update' REPETIDA POR ESTA:
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    return await this.coursesService.remove(id);
   }
 }
