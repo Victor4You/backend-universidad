@@ -2,6 +2,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { INestApplication } from '@nestjs/common';
+import * as express from 'express'; // Asegúrate de tener esta importación al inicio
+import { join } from 'path';
 
 // Variable para cachear la instancia en Serverless
 let app: INestApplication;
@@ -10,6 +12,7 @@ let app: INestApplication;
  * Configuración compartida de la aplicación
  */
 function setupApp(instance: INestApplication): void {
+  instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   instance.setGlobalPrefix('v1');
   instance.enableCors({
     origin: true,

@@ -18,6 +18,9 @@ export class Course {
   @Column({ default: 0 })
   creditos: number;
 
+  @Column({ type: 'timestamp', nullable: true })
+  fechaLimite: Date;
+
   @Column({ default: '2024-I' })
   semestre: string;
 

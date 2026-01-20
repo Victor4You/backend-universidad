@@ -6,11 +6,17 @@ import {
   Body,
   Put,
   Param,
+  Patch,
   Query,
   Delete,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import type { RegisterCompletionData } from './courses.service';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { Course } from './entities/course.entity';
 
 @Controller('courses')
 export class CoursesController {
@@ -27,7 +33,23 @@ export class CoursesController {
   async getProgress(@Query('userId') userId: string) {
     return await this.coursesService.findProgress(Number(userId));
   }
-
+  @Post('upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads', // Asegúrate de que esta carpeta exista en la raíz del backend
+        filename: (req, file, cb) => {
+          cb(null, file.originalname); // Guarda el archivo con su nombre original
+        },
+      }),
+    }),
+  )
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    return {
+      // Ahora file.originalname tendrá el valor correcto (ej: next.js_v14_documentation.pdf)
+      url: `http://localhost:3001/uploads/${file.originalname}`,
+    };
+  }
   @Get('my-courses/:userId')
   async getMyCourses(@Param('userId') userId: string) {
     return await this.coursesService.findCoursesByUser(Number(userId));
@@ -71,14 +93,23 @@ export class CoursesController {
     return await this.coursesService.create(courseData);
   }
 
-  @Put(':id')
-  async update(@Param('id') id: string, @Body() updateData: any) {
-    return await this.coursesService.update(id, updateData);
-  }
-
   // REEMPLAZA LA SEGUNDA FUNCIÓN 'update' REPETIDA POR ESTA:
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return await this.coursesService.remove(id);
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() updateData: Partial<Course>) {
+    return this.coursesService.update(id, updateData);
+  }
+
+  // Endpoint necesario para el modal de estudiantes
+  @Patch(':id/assign') // Para gestionar los alumnos desde el modal
+  async assignUsers(
+    @Param('id') id: string,
+    @Body('userIds') userIds: number[],
+  ) {
+    return this.coursesService.assignUsersToCourse(id, userIds);
   }
 }
