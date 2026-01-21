@@ -14,16 +14,21 @@ let app: INestApplication;
 function setupApp(instance: INestApplication): void {
   instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   instance.setGlobalPrefix('v1');
+
   instance.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'https://universidad-puropollo2.vercel.app',
-      // Agrega esta URL que aparece en tus capturas de pantalla:
-      'https://universidad-puropollo2-git-main-victor4yous-projects.vercel.app',
-    ],
+    // 1. Usa una función para el origin o '*' temporalmente para probar
+    origin: true, // Esto permite cualquier origen que coincida con tus dominios de Vercel
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'Bypass-Tunnel-Reminder'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'Bypass-Tunnel-Reminder',
+    ],
+    preflightContinue: false,
+    optionsSuccessStatus: 204, // Código de éxito para la petición de prueba (OPTIONS)
   });
 }
 
