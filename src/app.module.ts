@@ -1,8 +1,8 @@
-// src/app.module.ts
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth/auth.controller';
+import { join } from 'path';
 import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
@@ -10,25 +10,28 @@ import { CoursesModule } from './courses/courses.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // Hace que las variables estén disponibles en toda la app
+      isGlobal: true,
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        // Neon te da una URL larga, pero NestJS prefiere los campos separados:
-        host: configService.get<string>('DB_HOST', 'localhost'),
+        host: configService.get<string>('DB_HOST'),
         port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get<string>('DB_USER', 'postgres'),
-        password: configService.get<string>('DB_PASSWORD', '123'),
-        database: configService.get<string>('DB_NAME', 'universidad_db'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, // Crea las tablas automáticamente en Neon al conectar
-        ssl:
-          configService.get<string>('NODE_ENV') === 'production'
-            ? { rejectUnauthorized: false }
-            : false,
+        username: configService.get<string>('DB_USER'),
+        password: configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('DB_NAME'),
+        // Usamos join correctamente para las entidades
+        entities: [join(__dirname, '**', '*.entity.{ts,js}')],
+        // Sincronización solo fuera de producción
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+        ssl: true,
+        extra: {
+          ssl: {
+            rejectUnauthorized: false,
+          },
+        },
       }),
     }),
     CoursesModule,
