@@ -12,27 +12,28 @@ import { CoursesModule } from './courses/courses.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT', 5433),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
-        // Usamos join correctamente para las entidades
-        entities: [join(__dirname, '**', '*.entity.{ts,js}')],
-        // Sincronización solo fuera de producción
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
-        ssl: true,
-        extra: {
-          ssl: {
-            rejectUnauthorized: false,
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT || '5432'),
+      username: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: true,
+
+      // CAMBIO AQUÍ: SSL dinámico
+      ssl: process.env.DB_HOST?.includes('localhost')
+        ? false
+        : { rejectUnauthorized: false },
+
+      extra: process.env.DB_HOST?.includes('localhost')
+        ? {}
+        : {
+            ssl: {
+              rejectUnauthorized: false,
+            },
           },
-        },
-      }),
     }),
     CoursesModule,
   ],

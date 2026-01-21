@@ -11,12 +11,14 @@ import {
   Delete,
   UseInterceptors,
   UploadedFile,
+  Req,
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import type { RegisterCompletionData } from './courses.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { Course } from './entities/course.entity';
+import * as express from 'express';
 
 @Controller('courses')
 export class CoursesController {
@@ -37,17 +39,26 @@ export class CoursesController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads', // Asegúrate de que esta carpeta exista en la raíz del backend
+        destination: './uploads',
         filename: (req, file, cb) => {
-          cb(null, file.originalname); // Guarda el archivo con su nombre original
+          cb(null, file.originalname);
         },
       }),
     }),
   )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  async uploadFile(
+    @UploadedFile() file: Express.Multer.File,
+    @Req() request: express.Request, // Esto ya corrige el error anterior
+  ) {
+    // Obtenemos el host de forma segura
+    const host = request.headers.host || request.get('host');
+
+    // Determinamos protocolo: Local (http) vs Vercel (https)
+    const isLocal = host?.includes('localhost') || host?.includes('127.0.0.1');
+    const protocol = isLocal ? 'http' : 'https';
+
     return {
-      // Ahora file.originalname tendrá el valor correcto (ej: next.js_v14_documentation.pdf)
-      url: `http://localhost:3001/uploads/${file.originalname}`,
+      url: `${protocol}://${host}/uploads/${file.originalname}`,
     };
   }
   @Get('my-courses/:userId')
