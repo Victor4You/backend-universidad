@@ -66,13 +66,27 @@ export class CoursesService {
   }
 
   async create(data: Partial<Course>): Promise<Course> {
-    const newCourse = this.courseRepository.create(data);
-    return await this.courseRepository.save(newCourse);
+    try {
+      const newCourse = this.courseRepository.create(data);
+      return await this.courseRepository.save(newCourse);
+    } catch (error) {
+      console.error('Error al guardar en DB:', error);
+      throw error;
+    }
   }
 
+  // MODIFICADO: Manejo de actualización segura
   async update(id: string, data: Partial<Course>) {
-    await this.courseRepository.update(id, data);
-    return { message: 'Curso actualizado' };
+    try {
+      await this.courseRepository.update(id, data);
+      return { message: 'Curso actualizado exitosamente' };
+    } catch (error) {
+      console.error('Error al actualizar curso:', error);
+      return {
+        message: 'Error al actualizar datos en la base de datos',
+        error,
+      };
+    }
   }
 
   async registerCompletion(data: RegisterCompletionData) {

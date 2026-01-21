@@ -15,23 +15,12 @@ function setupApp(instance: INestApplication): void {
   instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   instance.setGlobalPrefix('v1');
   instance.enableCors({
-    origin: (origin, callback) => {
-      // Permitir si: no hay origen (como apps móviles), es localhost, o es tu dominio de vercel
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'https://universidad-puropollo2.vercel.app', // Reemplaza con tu URL real de Vercel
-      ];
-
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        origin.includes('vercel.app')
-      ) {
-        callback(null, true);
-      } else {
-        callback(null, new Error('Not allowed by CORS'));
-      }
-    },
+    origin: [
+      'http://localhost:3000',
+      'https://universidad-puropollo2.vercel.app',
+      // Agrega esta URL que aparece en tus capturas de pantalla:
+      'https://universidad-puropollo2-git-main-victor4yous-projects.vercel.app',
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'Bypass-Tunnel-Reminder'],
