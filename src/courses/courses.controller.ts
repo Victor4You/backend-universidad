@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Query,
+  ParseIntPipe, // Añadido para validar el ID del usuario
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -23,20 +24,26 @@ export class CoursesController {
   async findAll() {
     return this.coursesService.findAll();
   }
-  // 1. Subida de archivos usando Memoria (para Vercel y Local)
+
+  // NUEVO: Método para obtener el progreso del usuario (Soluciona el error 404 actual)
+  @Get('user-progress')
+  async findProgress(@Query('userId', ParseIntPipe) userId: number) {
+    return this.coursesService.findProgress(userId);
+  }
+
+  // 1. Subida de archivos usando Memoria
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: memoryStorage(), // Esto evita que Multer use el disco duro
+      storage: memoryStorage(),
     }),
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    // Llama al método que ya tienes en tu servicio
     return this.coursesService.uploadFileToBlob(file);
   }
 
   // 2. Registro de finalización
-  @Post('register-completion') // <-- CAMBIA A ESTO
+  @Post('register-completion')
   async registerCompletion(@Body() completionData: RegisterCompletionData) {
     return this.coursesService.registerCompletion(completionData);
   }
@@ -49,13 +56,11 @@ export class CoursesController {
     return this.coursesService.findUsersBySucursal(sucursalId, query);
   }
 
-  // 3. Obtener estudiantes inscritos
   @Get(':id/students')
   async getEnrolledStudents(@Param('id') id: string) {
     return this.coursesService.getEnrolledStudents(id);
   }
 
-  // 4. Asignar estudiantes (el método en tu servicio se llama assignUsersToCourse)
   @Post(':id/students')
   async assignStudents(
     @Param('id') courseId: string,
@@ -64,19 +69,16 @@ export class CoursesController {
     return this.coursesService.assignUsersToCourse(courseId, userIds);
   }
 
-  // 5. Crear curso
   @Post()
   async create(@Body() courseData: any) {
     return this.coursesService.create(courseData);
   }
 
-  // 6. Eliminar curso
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.coursesService.remove(id);
   }
 
-  // 7. Actualizar curso
   @Patch(':id')
   async update(@Param('id') id: string, @Body() updateData: Partial<Course>) {
     return this.coursesService.update(id, updateData);
