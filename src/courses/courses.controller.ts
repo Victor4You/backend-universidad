@@ -36,7 +36,7 @@ export class CoursesController {
   }
 
   // 2. Registro de finalización
-  @Post('completion')
+  @Post('register-completion') // <-- CAMBIA A ESTO
   async registerCompletion(@Body() completionData: RegisterCompletionData) {
     return this.coursesService.registerCompletion(completionData);
   }
