@@ -20,6 +20,12 @@ import { Course } from './entities/course.entity';
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
+  @Get('enrolled/:userId')
+  async findCoursesByUser(@Param('userId', ParseIntPipe) userId: number) {
+    // Llama al método del servicio que filtra por estudiante
+    return this.coursesService.findCoursesByUser(userId);
+  }
+
   @Get()
   async findAll() {
     return this.coursesService.findAll();
