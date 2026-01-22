@@ -16,7 +16,6 @@ import {
 import { CoursesService } from './courses.service';
 import type { RegisterCompletionData } from './courses.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
 import { Course } from './entities/course.entity';
 import * as express from 'express';
 
@@ -37,29 +36,11 @@ export class CoursesController {
   }
   @Post('upload')
   @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          cb(null, file.originalname);
-        },
-      }),
-    }),
+    FileInterceptor('file'), // Por defecto, NestJS guarda el archivo en memoria (buffer)
   )
-  async uploadFile(
-    @UploadedFile() file: Express.Multer.File,
-    @Req() request: express.Request, // Esto ya corrige el error anterior
-  ) {
-    // Obtenemos el host de forma segura
-    const host = request.headers.host || request.get('host');
-
-    // Determinamos protocolo: Local (http) vs Vercel (https)
-    const isLocal = host?.includes('localhost') || host?.includes('127.0.0.1');
-    const protocol = isLocal ? 'http' : 'https';
-
-    return {
-      url: `${protocol}://${host}/uploads/${file.originalname}`,
-    };
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    // Delegamos la subida a Vercel Blob al servicio para mantener el controlador limpio
+    return await this.coursesService.uploadFileToBlob(file);
   }
   @Get('my-courses/:userId')
   async getMyCourses(@Param('userId') userId: string) {

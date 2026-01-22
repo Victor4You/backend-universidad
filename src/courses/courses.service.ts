@@ -5,6 +5,7 @@ import { CourseCompletion } from './entities/course-completion.entity';
 import { CourseEnrollment } from './entities/course-enrollment.entity';
 import { Repository, In } from 'typeorm';
 import axios from 'axios';
+import { put } from '@vercel/blob';
 
 // 1. Definimos la estructura del usuario que viene de la API externa
 interface UniversidadUser {
@@ -235,5 +236,29 @@ export class CoursesService {
 
     // Borramos el curso
     return await this.courseRepository.delete(id);
+  }
+  async uploadFileToBlob(file: Express.Multer.File) {
+    try {
+      // Validamos que el token de Vercel exista (solo en desarrollo ayuda a debuggear)
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        this.logger.warn('BLOB_READ_WRITE_TOKEN no está configurado');
+      }
+
+      // 'put' sube el buffer del archivo a la nube de Vercel
+      const blob = await put(file.originalname, file.buffer, {
+        access: 'public', // Obligatorio para que los archivos sean accesibles vía URL
+      });
+
+      this.logger.log(`Archivo subido con éxito: ${blob.url}`);
+
+      return {
+        url: blob.url,
+      };
+    } catch (error) {
+      this.logger.error('Error en Vercel Blob:', error);
+      throw new Error(
+        'No se pudo subir el archivo al almacenamiento en la nube.',
+      );
+    }
   }
 }
