@@ -1,7 +1,7 @@
 import {
   Controller,
-  Post,
   Get,
+  Post,
   Put,
   Delete,
   Body,
@@ -18,6 +18,10 @@ import { Course } from './entities/course.entity';
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
+  @Get()
+  async findAll() {
+    return this.coursesService.findAll();
+  }
   // 1. Subida de archivos usando Memoria (para Vercel y Local)
   @Post('upload')
   @UseInterceptors(
@@ -69,4 +73,3 @@ export class CoursesController {
     return this.coursesService.update(id, updateData);
   }
 }
-
