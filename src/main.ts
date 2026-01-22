@@ -12,16 +12,34 @@ let app: INestApplication;
  * Configuración compartida de la aplicación
  */
 function setupApp(instance: INestApplication): void {
+  // 1. Aumentamos el límite de tamaño para subidas de archivos (ej. 10MB)
+  const expressInstance = instance.getHttpAdapter().getInstance();
+  expressInstance.use(express.json({ limit: '10mb' }));
+  expressInstance.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+  // 2. Ya no dependemos de /uploads local, pero lo dejamos por compatibilidad si es necesario
   instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+
   instance.setGlobalPrefix('v1');
 
+  // 3. Configuración de CORS Reforzada
   instance.enableCors({
-    // 1. Usa una función para el origin o '*' temporalmente para probar
-    origin: [
-      'https://universidad-puropollo2.vercel.app', // Tu frontend en Vercel
-      'http://localhost:3000', // Tu local
-      /\.vercel\.app$/, // Permite cualquier subdominio de vercel.app (opcional)
-    ],
+    origin: (origin, callback) => {
+      const allowedOrigins = [
+        'https://universidad-puropollo2.vercel.app',
+        'http://localhost:3000',
+      ];
+      // Permitir si el origen está en la lista o si no hay origen (como herramientas de test)
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app')
+      ) {
+        callback(null, true);
+      } else {
+        callback(new Error('No permitido por CORS'));
+      }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: [
@@ -29,10 +47,9 @@ function setupApp(instance: INestApplication): void {
       'Authorization',
       'X-Requested-With',
       'Accept',
-      'Bypass-Tunnel-Reminder',
     ],
-    preflightContinue: false,
-    optionsSuccessStatus: 204, // Código de éxito para la petición de prueba (OPTIONS)
+    // IMPORTANTE: Algunos navegadores fallan si no se define explícitamente el éxito de OPTIONS
+    optionsSuccessStatus: 204,
   });
 }
 
