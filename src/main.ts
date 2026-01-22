@@ -3,7 +3,6 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { INestApplication } from '@nestjs/common';
 import * as express from 'express'; // Asegúrate de tener esta importación al inicio
-import { join } from 'path';
 
 // Variable para cachear la instancia en Serverless
 let app: INestApplication;
@@ -32,6 +31,7 @@ function setupApp(instance: INestApplication): void {
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
       ];
+      // Permitimos local, dominios específicos y subdominios de vercel
       if (
         !origin ||
         allowedOrigins.includes(origin) ||

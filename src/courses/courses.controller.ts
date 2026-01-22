@@ -1,106 +1,71 @@
-// src/courses/courses.controller.ts
 import {
   Controller,
   Post,
-  UseInterceptors,
-  UploadedFile,
   Get,
+  Put,
+  Delete,
   Body,
   Param,
-  Patch,
-  Query,
-  Delete,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { CoursesService, RegisterCompletionData } from './courses.service';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer'; // <-- Esto lo hace universal
+import { memoryStorage } from 'multer';
+import { CoursesService, RegisterCompletionData } from './courses.service';
 import { Course } from './entities/course.entity';
-@Controller('courses')
+
+@Controller('v1/courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
-  @Get()
-  async findAll() {
-    return await this.coursesService.findAll();
-  }
-
-  // --- RUTAS ESTÁTICAS O CON PREFIJOS ESPECÍFICOS (DEBEN IR PRIMERO) ---
-
-  @Get('user-progress')
-  async getProgress(@Query('userId') userId: string) {
-    return await this.coursesService.findProgress(Number(userId));
-  }
+  // 1. Subida de archivos usando Memoria (para Vercel y Local)
   @Post('upload')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: memoryStorage(), // Funciona igual en Local y Vercel
+      storage: memoryStorage(), // Esto evita que Multer use el disco duro
     }),
   )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    // Al usar memoryStorage, el archivo llega aquí como file.buffer
-    return await this.coursesService.uploadFileToBlob(file);
+    // Llama al método que ya tienes en tu servicio
+    return this.coursesService.uploadFileToBlob(file);
   }
 
-  @Get('my-courses/:userId')
-  async getMyCourses(@Param('userId') userId: string) {
-    return await this.coursesService.findCoursesByUser(Number(userId));
-  }
-
-  @Get('enrolled/:userId')
-  async getEnrolledCourses(@Param('userId') userId: string) {
-    return await this.coursesService.findCoursesByUser(Number(userId));
-  }
-
-  @Get('users/sucursal/:sucursalId')
-  async findUsers(
-    @Param('sucursalId') sucursalId: string,
-    @Query('q') q: string,
-  ) {
-    return await this.coursesService.findUsersBySucursal(sucursalId, q);
-  }
-
-  @Post('register-completion')
+  // 2. Registro de finalización
+  @Post('completion')
   async registerCompletion(@Body() completionData: RegisterCompletionData) {
-    return await this.coursesService.registerCompletion(completionData);
+    return this.coursesService.registerCompletion(completionData);
   }
 
-  // --- RUTAS CON PARÁMETROS DINÁMICOS :id (DEBEN IR AL FINAL) ---
-
+  // 3. Obtener estudiantes inscritos
   @Get(':id/students')
   async getEnrolledStudents(@Param('id') id: string) {
     return this.coursesService.getEnrolledStudents(id);
   }
 
-  @Post(':id/students')
+  // 4. Asignar estudiantes (el método en tu servicio se llama assignUsersToCourse)
+  @Post(':id/assign')
   async assignStudents(
     @Param('id') courseId: string,
     @Body('userIds') userIds: number[],
   ) {
-    return await this.coursesService.assignUsersToCourse(courseId, userIds);
+    return this.coursesService.assignUsersToCourse(courseId, userIds);
   }
 
+  // 5. Crear curso
   @Post()
   async create(@Body() courseData: any) {
-    return await this.coursesService.create(courseData);
+    return this.coursesService.create(courseData);
   }
 
-  // REEMPLAZA LA SEGUNDA FUNCIÓN 'update' REPETIDA POR ESTA:
+  // 6. Eliminar curso
   @Delete(':id')
   async remove(@Param('id') id: string) {
-    return await this.coursesService.remove(id);
+    return this.coursesService.remove(id);
   }
 
-  @Patch(':id')
+  // 7. Actualizar curso
+  @Put(':id')
   async update(@Param('id') id: string, @Body() updateData: Partial<Course>) {
     return this.coursesService.update(id, updateData);
-  }
-
-  // Endpoint necesario para el modal de estudiantes
-  @Patch(':id/assign') // Para gestionar los alumnos desde el modal
-  async assignUsers(
-    @Param('id') id: string,
-    @Body('userIds') userIds: number[],
-  ) {
-    return this.coursesService.assignUsersToCourse(id, userIds);
   }
 }
