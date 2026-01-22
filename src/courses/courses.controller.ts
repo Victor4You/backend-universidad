@@ -56,7 +56,7 @@ export class CoursesController {
   }
 
   // 4. Asignar estudiantes (el método en tu servicio se llama assignUsersToCourse)
-  @Post(':id/assign')
+  @Post(':id/students')
   async assignStudents(
     @Param('id') courseId: string,
     @Body('userIds') userIds: number[],
