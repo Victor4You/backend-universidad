@@ -8,6 +8,7 @@ import {
   Param,
   UseInterceptors,
   UploadedFile,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -38,6 +39,14 @@ export class CoursesController {
   @Post('completion')
   async registerCompletion(@Body() completionData: RegisterCompletionData) {
     return this.coursesService.registerCompletion(completionData);
+  }
+
+  @Get('users/sucursal/:sucursalId')
+  async findUsers(
+    @Param('sucursalId') sucursalId: string,
+    @Query('q') query: string,
+  ) {
+    return this.coursesService.findUsersBySucursal(sucursalId, query);
   }
 
   // 3. Obtener estudiantes inscritos
