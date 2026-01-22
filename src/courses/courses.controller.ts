@@ -69,3 +69,4 @@ export class CoursesController {
     return this.coursesService.update(id, updateData);
   }
 }
+
