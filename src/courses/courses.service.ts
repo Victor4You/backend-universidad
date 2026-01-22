@@ -259,11 +259,11 @@ export class CoursesService {
       return {
         url: blob.url,
       };
-    } catch (error) {
-      this.logger.error(
-        `Error crítico en subida a Vercel Blob: ${error.message}`,
-      );
-      throw new Error('Error al procesar el almacenamiento en la nube.');
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error detallado: ${errorMessage}`);
+      throw error;
     }
   }
 }

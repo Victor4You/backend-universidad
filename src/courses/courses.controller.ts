@@ -4,20 +4,18 @@ import {
   Get,
   Post,
   Body,
-  Put,
-  Param,
+  Param, // Eliminamos Put si no se usa
   Patch,
   Query,
   Delete,
   UseInterceptors,
   UploadedFile,
-  Req,
+  // Eliminamos Req
 } from '@nestjs/common';
 import { CoursesService } from './courses.service';
 import type { RegisterCompletionData } from './courses.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Course } from './entities/course.entity';
-import * as express from 'express';
 
 @Controller('courses')
 export class CoursesController {
@@ -35,11 +33,8 @@ export class CoursesController {
     return await this.coursesService.findProgress(Number(userId));
   }
   @Post('upload')
-  @UseInterceptors(
-    FileInterceptor('file'), // Por defecto, NestJS guarda el archivo en memoria (buffer)
-  )
+  @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
-    // Delegamos la subida a Vercel Blob al servicio para mantener el controlador limpio
     return await this.coursesService.uploadFileToBlob(file);
   }
   @Get('my-courses/:userId')

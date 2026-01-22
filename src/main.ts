@@ -12,24 +12,26 @@ let app: INestApplication;
  * Configuración compartida de la aplicación
  */
 function setupApp(instance: INestApplication): void {
-  // 1. Aumentamos el límite de tamaño para subidas de archivos (ej. 10MB)
-  const expressInstance = instance.getHttpAdapter().getInstance();
+  // Tipamos la instancia de express para evitar los errores de ESLint
+  const expressInstance = instance
+    .getHttpAdapter()
+    .getInstance() as express.Application;
+
   expressInstance.use(express.json({ limit: '10mb' }));
   expressInstance.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-  // 2. Ya no dependemos de /uploads local, pero lo dejamos por compatibilidad si es necesario
   instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
-
   instance.setGlobalPrefix('v1');
 
-  // 3. Configuración de CORS Reforzada
   instance.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       const allowedOrigins = [
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
       ];
-      // Permitir si el origen está en la lista o si no hay origen (como herramientas de test)
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
@@ -48,7 +50,6 @@ function setupApp(instance: INestApplication): void {
       'X-Requested-With',
       'Accept',
     ],
-    // IMPORTANTE: Algunos navegadores fallan si no se define explícitamente el éxito de OPTIONS
     optionsSuccessStatus: 204,
   });
 }

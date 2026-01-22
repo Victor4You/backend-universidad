@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { AuthController } from './auth/auth.controller';
-import { join } from 'path';
 import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
