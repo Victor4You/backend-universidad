@@ -14,7 +14,7 @@ import { memoryStorage } from 'multer';
 import { CoursesService, RegisterCompletionData } from './courses.service';
 import { Course } from './entities/course.entity';
 
-@Controller('v1/courses')
+@Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
