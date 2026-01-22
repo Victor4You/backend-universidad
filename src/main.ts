@@ -17,7 +17,11 @@ function setupApp(instance: INestApplication): void {
 
   instance.enableCors({
     // 1. Usa una función para el origin o '*' temporalmente para probar
-    origin: true, // Esto permite cualquier origen que coincida con tus dominios de Vercel
+    origin: [
+      'https://universidad-puropollo2.vercel.app', // Tu frontend en Vercel
+      'http://localhost:3000', // Tu local
+      /\.vercel\.app$/, // Permite cualquier subdominio de vercel.app (opcional)
+    ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders: [

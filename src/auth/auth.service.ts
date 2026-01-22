@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import axios from 'axios';
 import md5 from 'md5';
 import { LoginDto } from './auth.controller';
@@ -26,6 +26,7 @@ interface UniversidadUser {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly EXTERNAL_API_URL =
     process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
   private readonly MASTER_TOKEN =
@@ -34,6 +35,7 @@ export class AuthService {
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
     try {
       const url = `${this.EXTERNAL_API_URL}/usuarios/usuario/${loginDto.username}`;
+      this.logger.log(`Intentando conectar a: ${url}`);
       const response = await axios.get<UniversidadUser>(url, {
         headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
         timeout: 60000,
@@ -72,8 +74,22 @@ export class AuthService {
         email: externalUser.empleado?.email || '',
         token: 'token_memoria_activa', // Solo en memoria
       };
-    } catch (error: unknown) {
+    } catch (error: any) {
+      this.logger.error(`Error en AuthService: ${error.message}`);
+
       if (error instanceof UnauthorizedException) throw error;
+
+      // Error específico si la IP no es alcanzable (típico en Vercel)
+      if (
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ENOTFOUND' ||
+        error.status === 504
+      ) {
+        throw new UnauthorizedException(
+          'El servidor universitario no responde. Verifica la conexión VPN o IP Pública.',
+        );
+      }
+
       throw new UnauthorizedException(
         'Error de conexión con el servidor universitario',
       );

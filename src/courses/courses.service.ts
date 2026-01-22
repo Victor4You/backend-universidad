@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Course } from './entities/course.entity';
 import { CourseCompletion } from './entities/course-completion.entity';
@@ -33,8 +33,14 @@ export class RegisterCompletionData {
 
 @Injectable()
 export class CoursesService {
-  private readonly EXTERNAL_API_URL = 'http://192.168.13.170:3201/v1';
+  private readonly logger = new Logger(CoursesService.name);
+
+  // CAMBIO: Usar variables de entorno para que Vercel pueda conectar
+  private readonly EXTERNAL_API_URL =
+    process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
+
   private readonly MASTER_TOKEN =
+    process.env.MASTER_TOKEN ||
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
 
   constructor(
@@ -110,9 +116,12 @@ export class CoursesService {
       const maxPages = 20;
 
       for (let page = 1; page <= maxPages; page++) {
+        // Log para debuggear conexión en Vercel
         const url = `${this.EXTERNAL_API_URL}/usuarios?q=${query}&take=20&page=${page}`;
+
         const response = await axios.get<APIResponse>(url, {
-          headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` },
+          headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
+          timeout: 15000, // Timeout de 15 segundos
         });
 
         const data = response.data.data || [];
@@ -121,7 +130,7 @@ export class CoursesService {
       }
 
       return allUsersFound
-        .filter((u) => String(u.sucursalId) === String(sucursalId)) // Usamos 'u'
+        .filter((u) => String(u.sucursalId) === String(sucursalId))
         .map((u) => ({
           id: u.id,
           nombre: u.nombre,
@@ -129,12 +138,10 @@ export class CoursesService {
           usuario: u.usuario,
           username: u.usuario,
           sucursalId: u.sucursalId,
-          sucursalNombre: u.sucursal?.nombre || 'Sin nombre', // Corregido: u.sucursal
+          sucursalNombre: u.sucursal?.nombre || 'Sin nombre',
         }));
-    } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : 'Error desconocido';
-      console.error(`Error: ${message}`);
+    } catch (error: any) {
+      this.logger.error(`Error al buscar usuarios: ${error.message}`);
       return [];
     }
   }
@@ -188,10 +195,12 @@ export class CoursesService {
       const allUsersFound: UniversidadUser[] = [];
 
       for (let page = 1; page <= 20; page++) {
-        // Tipamos el axios.get con <APIResponse>
         const response = await axios.get<APIResponse>(
           `${this.EXTERNAL_API_URL}/usuarios?take=20&page=${page}`,
-          { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
+          {
+            headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
+            timeout: 15000,
+          },
         );
 
         const data = response.data.data || [];
@@ -204,19 +213,14 @@ export class CoursesService {
 
         return {
           id: enrolled.userId,
-          // Al estar tipado, ya no marca error al acceder a .nombre o .apellido
           name: userApi
             ? `${userApi.nombre} ${userApi.apellido}`
             : `ID: ${enrolled.userId}`,
           username: userApi ? userApi.usuario : 'desconocido',
         };
       });
-    } catch (error: unknown) {
-      // Para el error .message, tipamos el error como 'any' o usamos type guards
-      const errorMessage =
-        error instanceof Error ? error.message : 'Error desconocido';
-      console.error('Error al sincronizar con API:', errorMessage);
-
+    } catch (error: any) {
+      this.logger.error(`Error al sincronizar estudiantes: ${error.message}`);
       return enrollments.map((e) => ({
         id: e.userId,
         name: `ID: ${e.userId}`,
