@@ -20,7 +20,7 @@ function setupApp(instance: INestApplication): void {
   expressInstance.use(express.json({ limit: '10mb' }));
   expressInstance.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-  instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));
+  /**instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));**/
   instance.setGlobalPrefix('v1');
 
   instance.enableCors({

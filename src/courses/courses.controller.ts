@@ -1,22 +1,20 @@
 // src/courses/courses.controller.ts
 import {
   Controller,
-  Get,
   Post,
+  UseInterceptors,
+  UploadedFile,
+  Get,
   Body,
-  Param, // Eliminamos Put si no se usa
+  Param,
   Patch,
   Query,
   Delete,
-  UseInterceptors,
-  UploadedFile,
-  // Eliminamos Req
 } from '@nestjs/common';
-import { CoursesService } from './courses.service';
-import type { RegisterCompletionData } from './courses.service';
+import { CoursesService, RegisterCompletionData } from './courses.service';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer'; // <-- Esto lo hace universal
 import { Course } from './entities/course.entity';
-
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
@@ -33,10 +31,16 @@ export class CoursesController {
     return await this.coursesService.findProgress(Number(userId));
   }
   @Post('upload')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(), // Funciona igual en Local y Vercel
+    }),
+  )
   async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    // Al usar memoryStorage, el archivo llega aquí como file.buffer
     return await this.coursesService.uploadFileToBlob(file);
   }
+
   @Get('my-courses/:userId')
   async getMyCourses(@Param('userId') userId: string) {
     return await this.coursesService.findCoursesByUser(Number(userId));

@@ -240,30 +240,22 @@ export class CoursesService {
   async uploadFileToBlob(file: Express.Multer.File) {
     try {
       if (!file || !file.buffer) {
-        throw new Error(
-          'No se recibió el contenido del archivo (buffer vacío)',
-        );
+        throw new Error('El archivo no se cargó correctamente en memoria.');
       }
 
-      // 1. Generamos un nombre único para evitar colisiones
       const fileName = `courses/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
 
-      // 2. Subida directa a Vercel Blob
+      // put() de vercel/blob acepta el buffer directamente
+      // Esto funciona en local (si tienes el TOKEN en el .env) y en Vercel
       const blob = await put(fileName, file.buffer, {
         access: 'public',
-        // El token se lee automáticamente de process.env.BLOB_READ_WRITE_TOKEN
       });
 
-      this.logger.log(`Archivo subido exitosamente a Blob: ${blob.url}`);
-
-      return {
-        url: blob.url,
-      };
+      return { url: blob.url };
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Error desconocido';
-      this.logger.error(`Error detallado: ${errorMessage}`);
-      throw error;
+      const msg = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`Error en subida: ${msg}`);
+      throw new Error('Error al procesar el almacenamiento.');
     }
   }
 }
