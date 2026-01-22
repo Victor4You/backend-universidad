@@ -239,26 +239,31 @@ export class CoursesService {
   }
   async uploadFileToBlob(file: Express.Multer.File) {
     try {
-      // Validamos que el token de Vercel exista (solo en desarrollo ayuda a debuggear)
-      if (!process.env.BLOB_READ_WRITE_TOKEN) {
-        this.logger.warn('BLOB_READ_WRITE_TOKEN no está configurado');
+      if (!file || !file.buffer) {
+        throw new Error(
+          'No se recibió el contenido del archivo (buffer vacío)',
+        );
       }
 
-      // 'put' sube el buffer del archivo a la nube de Vercel
-      const blob = await put(file.originalname, file.buffer, {
-        access: 'public', // Obligatorio para que los archivos sean accesibles vía URL
+      // 1. Generamos un nombre único para evitar colisiones
+      const fileName = `courses/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
+
+      // 2. Subida directa a Vercel Blob
+      const blob = await put(fileName, file.buffer, {
+        access: 'public',
+        // El token se lee automáticamente de process.env.BLOB_READ_WRITE_TOKEN
       });
 
-      this.logger.log(`Archivo subido con éxito: ${blob.url}`);
+      this.logger.log(`Archivo subido exitosamente a Blob: ${blob.url}`);
 
       return {
         url: blob.url,
       };
     } catch (error) {
-      this.logger.error('Error en Vercel Blob:', error);
-      throw new Error(
-        'No se pudo subir el archivo al almacenamiento en la nube.',
+      this.logger.error(
+        `Error crítico en subida a Vercel Blob: ${error.message}`,
       );
+      throw new Error('Error al procesar el almacenamiento en la nube.');
     }
   }
 }
