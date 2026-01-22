@@ -2,7 +2,7 @@ import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -77,7 +77,7 @@ export class CoursesController {
   }
 
   // 7. Actualizar curso
-  @Put(':id')
+  @Patch(':id')
   async update(@Param('id') id: string, @Body() updateData: Partial<Course>) {
     return this.coursesService.update(id, updateData);
   }
