@@ -6,6 +6,7 @@ import { CourseEnrollment } from './entities/course-enrollment.entity';
 import { Repository, In } from 'typeorm';
 import axios from 'axios';
 import { put } from '@vercel/blob';
+import { User } from '../users/user.entity';
 
 // 1. Definimos la estructura del usuario que viene de la API externa
 interface UniversidadUser {
@@ -30,13 +31,13 @@ export class RegisterCompletionData {
   courseId: string | number;
   score: number;
   survey?: Record<string, number>;
+  userName?: string; // Corregido: Ahora TypeScript reconoce esta propiedad
 }
 
 @Injectable()
 export class CoursesService {
   private readonly logger = new Logger(CoursesService.name);
 
-  // CAMBIO: Usar variables de entorno para que Vercel pueda conectar
   private readonly EXTERNAL_API_URL =
     process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
 
@@ -51,11 +52,13 @@ export class CoursesService {
     private completionRepository: Repository<CourseCompletion>,
     @InjectRepository(CourseEnrollment)
     private enrollmentRepository: Repository<CourseEnrollment>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   async findAll() {
     const courses = await this.courseRepository.find({
-      relations: ['estudiantesInscritos'], // Solo asegúrate que este nombre sea igual al de tu Entity
+      relations: ['estudiantesInscritos'],
       order: { id: 'ASC' },
     });
 
@@ -66,10 +69,18 @@ export class CoursesService {
   }
 
   async findProgress(userId: number): Promise<string[]> {
-    const completions = await this.completionRepository.find({
-      where: { userId },
+    const externalUsername = `user_${userId}`;
+    const user = await this.userRepository.findOne({
+      where: { username: externalUsername },
     });
-    return completions.map((c) => c.courseId);
+
+    if (!user) return [];
+
+    const completions = await this.completionRepository.find({
+      where: { userId: user.id },
+    });
+
+    return completions.map((c) => String(c.courseId));
   }
 
   async create(data: Partial<Course>): Promise<Course> {
@@ -82,7 +93,6 @@ export class CoursesService {
     }
   }
 
-  // MODIFICADO: Manejo de actualización segura
   async update(id: string, data: Partial<Course>) {
     try {
       await this.courseRepository.update(id, data);
@@ -96,18 +106,80 @@ export class CoursesService {
     }
   }
 
-  async registerCompletion(data: RegisterCompletionData) {
-    const existing = await this.completionRepository.findOne({
-      where: { userId: Number(data.userId), courseId: String(data.courseId) },
+  async findCoursesByUser(userId: number): Promise<any[]> {
+    const enrollments = await this.enrollmentRepository.find({
+      where: { userId },
     });
-    if (existing && existing.score >= 90) return existing;
 
-    const completion = this.completionRepository.create({
-      userId: Number(data.userId),
-      courseId: String(data.courseId),
-      score: data.score,
-      survey: data.survey as Record<string, any>,
+    const courseIds = enrollments.map((e) => e.courseId);
+    if (courseIds.length === 0) return [];
+
+    const courses = await this.courseRepository.find({
+      where: {
+        id: In(courseIds),
+      },
+      relations: ['estudiantesInscritos'],
+      order: { id: 'ASC' },
     });
+
+    return courses.map((course) => ({
+      ...course,
+      estudiantes: course.estudiantesInscritos?.length || 0,
+    }));
+  }
+
+  async registerCompletion(completionData: RegisterCompletionData) {
+    const { userId, courseId, score, survey, userName } = completionData;
+
+    const externalUsername = `user_${userId}`;
+    let user = await this.userRepository.findOne({
+      where: { username: externalUsername },
+    });
+
+    if (!user) {
+      try {
+        user = this.userRepository.create({
+          username: externalUsername,
+          password: 'external_auth_user',
+          name: userName || `Estudiante ${userId}`, // Prioriza el nombre real para el reporte
+          email: `user${userId}@sistema.com`,
+          role: 'user',
+        });
+        user = await this.userRepository.save(user);
+      } catch (error: any) {
+        if (error.code === '23505') {
+          user = await this.userRepository.findOne({
+            where: { username: externalUsername },
+          });
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    if (!user) {
+      throw new Error(
+        'No se pudo encontrar ni crear el usuario en la base de datos.',
+      );
+    }
+
+    let completion = await this.completionRepository.findOne({
+      where: { userId: user.id, courseId: String(courseId) },
+    });
+
+    if (completion) {
+      completion.score = score;
+      completion.survey = survey;
+      completion.completedAt = new Date();
+    } else {
+      completion = this.completionRepository.create({
+        userId: user.id,
+        courseId: String(courseId),
+        score: score,
+        survey: survey,
+      });
+    }
+
     return await this.completionRepository.save(completion);
   }
 
@@ -117,12 +189,10 @@ export class CoursesService {
       const maxPages = 20;
 
       for (let page = 1; page <= maxPages; page++) {
-        // Log para debuggear conexión en Vercel
         const url = `${this.EXTERNAL_API_URL}/usuarios?q=${query}&take=20&page=${page}`;
-
         const response = await axios.get<APIResponse>(url, {
           headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
-          timeout: 15000, // Timeout de 15 segundos
+          timeout: 15000,
         });
 
         const data = response.data.data || [];
@@ -148,41 +218,29 @@ export class CoursesService {
   }
 
   async assignUsersToCourse(courseId: string, userIds: number[]) {
-    // 1. Eliminamos inscripciones viejas para este curso
+    for (const id of userIds) {
+      let user = await this.userRepository.findOne({ where: { id } });
+      if (!user) {
+        await this.userRepository.save(
+          this.userRepository.create({
+            id,
+            username: `user_${id}`,
+            name: `Usuario ${id}`,
+            email: `user${id}@sistema.com`,
+            password: 'external_auth_user',
+          }),
+        );
+      }
+    }
+
     await this.enrollmentRepository.delete({ courseId });
 
-    // 2. Creamos las nuevas
     const newEnrollments = userIds.map((userId) =>
       this.enrollmentRepository.create({ courseId, userId }),
     );
     await this.enrollmentRepository.save(newEnrollments);
 
-    // 3. Retornamos el curso actualizado con su nuevo conteo
     return this.findAll();
-  }
-  // 2. Filtro de cursos para la vista del estudiante
-  async findCoursesByUser(userId: number): Promise<any[]> {
-    // Cambiado a any[] para soportar el campo virtual
-    const enrollments = await this.enrollmentRepository.find({
-      where: { userId },
-    });
-
-    const courseIds = enrollments.map((e) => e.courseId);
-    if (courseIds.length === 0) return [];
-
-    const courses = await this.courseRepository.find({
-      where: {
-        id: In(courseIds),
-      },
-      relations: ['estudiantesInscritos'], // AÑADIDO: Carga la relación para contar
-      order: { id: 'ASC' },
-    });
-
-    // AÑADIDO: Mapeo para calcular el número de estudiantes
-    return courses.map((course) => ({
-      ...course,
-      estudiantes: course.estudiantesInscritos?.length || 0,
-    }));
   }
 
   async getEnrolledStudents(courseId: string) {
@@ -194,7 +252,6 @@ export class CoursesService {
 
     try {
       const allUsersFound: UniversidadUser[] = [];
-
       for (let page = 1; page <= 20; page++) {
         const response = await axios.get<APIResponse>(
           `${this.EXTERNAL_API_URL}/usuarios?take=20&page=${page}`,
@@ -203,7 +260,6 @@ export class CoursesService {
             timeout: 15000,
           },
         );
-
         const data = response.data.data || [];
         if (data.length === 0) break;
         allUsersFound.push(...data);
@@ -211,7 +267,6 @@ export class CoursesService {
 
       return enrollments.map((enrolled) => {
         const userApi = allUsersFound.find((u) => u.id === enrolled.userId);
-
         return {
           id: enrolled.userId,
           name: userApi
@@ -229,28 +284,22 @@ export class CoursesService {
       }));
     }
   }
+
   async remove(id: string) {
-    // Borramos dependencias para evitar errores de llave foránea
     await this.enrollmentRepository.delete({ courseId: id });
     await this.completionRepository.delete({ courseId: id });
-
-    // Borramos el curso
     return await this.courseRepository.delete(id);
   }
+
   async uploadFileToBlob(file: Express.Multer.File) {
     try {
       if (!file || !file.buffer) {
         throw new Error('El archivo no se cargó correctamente en memoria.');
       }
-
       const fileName = `courses/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-
-      // put() de vercel/blob acepta el buffer directamente
-      // Esto funciona en local (si tienes el TOKEN en el .env) y en Vercel
       const blob = await put(fileName, file.buffer, {
         access: 'public',
       });
-
       return { url: blob.url };
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error desconocido';

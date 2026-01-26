@@ -5,6 +5,9 @@ import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
+import { ReportsController } from './reports/reports.controller';
+import { ReportsService } from './reports/reports.service';
+import { CourseCompletion } from './courses/entities/course-completion.entity';
 
 @Module({
   imports: [
@@ -34,9 +37,11 @@ import { CoursesModule } from './courses/courses.module';
             },
           },
     }),
+    TypeOrmModule.forFeature([CourseCompletion]),
     CoursesModule,
   ],
-  controllers: [AuthController, UsersController],
-  providers: [AuthService],
+  controllers: [AuthController, UsersController, ReportsController],
+  // Registramos el ReportsService para que el controlador pueda usarlo
+  providers: [AuthService, ReportsService],
 })
 export class AppModule {}
