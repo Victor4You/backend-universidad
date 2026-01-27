@@ -13,7 +13,7 @@ import { User } from '../users/user.entity';
 @Module({
   imports: [
     // 2. La agregamos aquí para que TypeORM cree la tabla en la DB
-    // Añadimos User porque ReportsService lo necesita para las relaciones
+    // Agregamos User porque ReportsService lo necesita para los JOINs
     TypeOrmModule.forFeature([
       Course,
       CourseCompletion,
@@ -24,7 +24,7 @@ import { User } from '../users/user.entity';
   controllers: [CoursesController],
   providers: [
     CoursesService,
-    ReportsService, // Agregamos el servicio aquí para que el controlador lo pueda usar
+    ReportsService, // Esto permite que el controlador use el servicio
   ],
   exports: [CoursesService],
 })
