@@ -75,8 +75,13 @@ export class ReportsService {
   }
 
   private async mapEnrollmentsWithData(enrollments: any[]) {
-    const userIds = enrollments.map((c) => String(c.userId));
-    const courseIds = enrollments.map((c) => String(c.courseId));
+    // Extraemos IDs asegurando que no sean nulos
+    const userIds = enrollments
+      .map((c) => String(c.userId))
+      .filter((id) => id !== 'undefined');
+    const courseIds = enrollments
+      .map((c) => String(c.courseId))
+      .filter((id) => id !== 'undefined');
 
     const completions = await this.completionRepo.find({
       where: {
@@ -88,30 +93,29 @@ export class ReportsService {
     return enrollments.map((enroll) => {
       const completion = completions.find(
         (comp) =>
-          String(comp.userId) === String(enroll.userId) &&
-          String(comp.courseId) === String(enroll.courseId),
+          String(comp?.userId) === String(enroll?.userId) &&
+          String(comp?.courseId) === String(enroll?.courseId),
       );
 
       const fechaReferencia =
-        (enroll as any).createdAt || (enroll as any).enrolledAt || new Date();
+        (enroll as any)?.createdAt || (enroll as any)?.enrolledAt || new Date();
 
-      // Priorizamos 'name' que es el campo real de tu User entity
+      // PROTECCIÓN PARA VERCEL: Si la relación falla, usamos respaldos
       const nombreAlumno =
-        enroll.user?.name ||
-        enroll.userName ||
-        enroll.userUsername ||
-        `ID: ${enroll.userId}`;
+        enroll?.user?.name ||
+        enroll?.userName ||
+        enroll?.userUsername ||
+        `ID: ${enroll?.userId || 'N/A'}`;
 
-      // DEFINICIÓN QUE FALTABA: Obtenemos el nombre del curso de la relación
       const nombreCurso =
-        enroll.course?.nombre || enroll.course?.title || 'Curso Desconocido';
+        enroll?.course?.nombre || enroll?.course?.title || 'Curso Desconocido';
 
       return {
         ...enroll,
         completedAt: completion?.completedAt || fechaReferencia,
         studentName: nombreAlumno,
-        courseName: nombreCurso, // Ahora sí encontrará la variable
-        score: completion ? completion.score : 0,
+        courseName: nombreCurso,
+        score: completion ? completion.score || 0 : 0,
         status: completion ? 'Completado' : 'En progreso',
       };
     });
