@@ -75,24 +75,27 @@ export class ReportsService {
   }
 
   private async mapEnrollmentsWithData(enrollments: any[]) {
-    // Extraemos IDs asegurando que no sean nulos
+    // 1. Limpieza de IDs para evitar que In([]) falle o explote
     const userIds = enrollments
-      .map((c) => String(c.userId))
-      .filter((id) => id !== 'undefined');
+      .map((c) => String(c?.userId))
+      .filter((id) => id && id !== 'undefined');
     const courseIds = enrollments
-      .map((c) => String(c.courseId))
-      .filter((id) => id !== 'undefined');
+      .map((c) => String(c?.courseId))
+      .filter((id) => id && id !== 'undefined');
 
-    const completions = await this.completionRepo.find({
-      where: {
-        userId: In(userIds),
-        courseId: In(courseIds),
-      },
-    });
+    const completions = await this.completionRepo
+      .find({
+        where: {
+          userId: In(userIds),
+          courseId: In(courseIds),
+        },
+      })
+      .catch(() => []);
 
     return enrollments.map((enroll) => {
+      // CAMBIO AQUÍ: Añadimos (comp: any) para evitar el error de tipo 'never'
       const completion = completions.find(
-        (comp) =>
+        (comp: any) =>
           String(comp?.userId) === String(enroll?.userId) &&
           String(comp?.courseId) === String(enroll?.courseId),
       );
@@ -100,22 +103,24 @@ export class ReportsService {
       const fechaReferencia =
         (enroll as any)?.createdAt || (enroll as any)?.enrolledAt || new Date();
 
-      // PROTECCIÓN PARA VERCEL: Si la relación falla, usamos respaldos
+      // PROTECCIÓN TOTAL PARA VERCEL
       const nombreAlumno =
         enroll?.user?.name ||
         enroll?.userName ||
         enroll?.userUsername ||
-        `ID: ${enroll?.userId || 'N/A'}`;
+        `Estudiante ID: ${enroll?.userId || 'N/A'}`;
 
       const nombreCurso =
-        enroll?.course?.nombre || enroll?.course?.title || 'Curso Desconocido';
+        enroll?.course?.nombre ||
+        enroll?.course?.title ||
+        'Curso no especificado';
 
       return {
         ...enroll,
         completedAt: completion?.completedAt || fechaReferencia,
         studentName: nombreAlumno,
         courseName: nombreCurso,
-        score: completion ? completion.score || 0 : 0,
+        score: completion ? Number(completion.score) || 0 : 0,
         status: completion ? 'Completado' : 'En progreso',
       };
     });

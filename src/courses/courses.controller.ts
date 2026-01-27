@@ -13,17 +13,49 @@ import {
   ParseIntPipe,
   Res,
 } from '@nestjs/common';
-import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { memoryStorage } from 'multer';
 import { CoursesService, RegisterCompletionData } from './courses.service';
 import { Course } from './entities/course.entity';
+import { ReportsService } from '../reports/reports.service';
+// Usamos import tipo objeto para evitar el error TS1272 en Vercel/isolatedModules
 import * as Express from 'express';
-import { Multer } from 'multer';
 
 @Controller('courses')
 export class CoursesController {
-  constructor(private readonly coursesService: CoursesService) {}
+  // AÑADIDO: Inyectamos ReportsService en el constructor
+  constructor(
+    private readonly coursesService: CoursesService,
+    private readonly reportsService: ReportsService,
+  ) {}
+
+  // CAMBIO: Esta es la ruta que Vercel intentaba llamar.
+  // La dejamos como GET para que sea más ligera.
+  @Get('export')
+  async export(@Res() res: Express.Response, @Query() filters: any) {
+    try {
+      const format = filters.format || 'excel';
+      const buffer = await this.reportsService.generateFile(format, filters);
+
+      const contentTypes: Record<string, string> = {
+        pdf: 'application/pdf',
+        excel:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        csv: 'text/csv',
+      };
+
+      // Configuración de cabeceras específica para que Vercel no corte la descarga
+      res.set({
+        'Content-Type': contentTypes[format] || 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="reporte-${Date.now()}.${format}"`,
+        'Content-Length': buffer.length,
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('Error exportando reporte:', error);
+      res.status(500).json({ message: error.message });
+    }
+  }
 
   // ======================================================
   // 1. RUTAS DE CONSULTA ESPECÍFICAS (Deben ir PRIMERO)
@@ -89,7 +121,6 @@ export class CoursesController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadFile(@UploadedFile() file: any) {
     return this.coursesService.uploadFileToBlob(file);
-    console.log(file);
   }
 
   /**
@@ -135,13 +166,16 @@ export class CoursesController {
     return this.coursesService.remove(id);
   }
 
+  // Esta ruta es antigua, si tu frontend usa la de arriba (@Get('export')),
+  // podrías borrar esta más adelante.
   @Post('export-report')
-  @Header(
-    'Content-Type',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  )
   async exportReport(@Body() body: any, @Res() res: Express.Response) {
     const buffer = await this.coursesService.generateExcelReport(body);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Length': buffer.length,
+    });
     res.send(buffer);
   }
 
