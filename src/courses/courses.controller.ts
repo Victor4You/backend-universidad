@@ -5,16 +5,21 @@ import {
   Patch,
   Delete,
   Body,
+  Header,
   Param,
   UseInterceptors,
   UploadedFile,
   Query,
   ParseIntPipe,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { CoursesService, RegisterCompletionData } from './courses.service';
 import { Course } from './entities/course.entity';
+import * as Express from 'express';
+import { Multer } from 'multer';
 
 @Controller('courses')
 export class CoursesController {
@@ -81,13 +86,10 @@ export class CoursesController {
    * Sube archivos a Vercel Blob usando memoria (evita error EROFS).
    */
   @Post('upload')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: memoryStorage(),
-    }),
-  )
-  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(@UploadedFile() file: any) {
     return this.coursesService.uploadFileToBlob(file);
+    console.log(file);
   }
 
   /**
@@ -131,5 +133,20 @@ export class CoursesController {
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.coursesService.remove(id);
+  }
+
+  @Post('export-report')
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  async exportReport(@Body() body: any, @Res() res: Express.Response) {
+    const buffer = await this.coursesService.generateExcelReport(body);
+    res.send(buffer);
+  }
+
+  @Get('reports/stats')
+  async getStats() {
+    return this.coursesService.getRealReportStats();
   }
 }

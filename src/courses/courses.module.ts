@@ -7,17 +7,11 @@ import { Course } from './entities/course.entity';
 import { CourseCompletion } from './entities/course-completion.entity';
 // 1. Importamos la nueva entidad de inscripciones
 import { CourseEnrollment } from './entities/course-enrollment.entity';
-import { User } from '../users/user.entity'; // <-- IMPORTANTE: Ruta según tu estructura
 
 @Module({
   imports: [
     // 2. La agregamos aquí para que TypeORM cree la tabla en la DB
-    TypeOrmModule.forFeature([
-      Course,
-      CourseCompletion,
-      CourseEnrollment,
-      User,
-    ]),
+    TypeOrmModule.forFeature([Course, CourseCompletion, CourseEnrollment]),
   ],
   controllers: [CoursesController],
   providers: [CoursesService],

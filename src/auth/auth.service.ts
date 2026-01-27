@@ -63,8 +63,8 @@ export class AuthService {
         );
       }
 
-      // Devolvemos un objeto plano que coincida con lo que el Front mapeará
-      return {
+      // LIMPIEZA: Eliminamos el return duplicado y consolidamos el objeto
+      const userData = {
         id: externalUser.id,
         usuario: externalUser.usuario,
         nombre: externalUser.nombre,
@@ -72,8 +72,11 @@ export class AuthService {
         name: `${externalUser.nombre} ${externalUser.apellido}`.trim(),
         role: role,
         email: externalUser.empleado?.email || '',
-        token: 'token_memoria_activa', // Solo en memoria
+        token: 'token_memoria_activa',
       };
+
+      this.logger.log(`Datos enviados al front: ${JSON.stringify(userData)}`);
+      return userData;
     } catch (error: any) {
       this.logger.error(`Error en AuthService: ${error.message}`);
 

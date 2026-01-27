@@ -6,8 +6,11 @@ import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
 import { ReportsController } from './reports/reports.controller';
+import { User } from './users/user.entity';
+import { Course } from './courses/entities/course.entity';
 import { ReportsService } from './reports/reports.service';
 import { CourseCompletion } from './courses/entities/course-completion.entity';
+import { CourseEnrollment } from './courses/entities/course-enrollment.entity'; // 1. Importar la entidad
 
 @Module({
   imports: [
@@ -22,26 +25,27 @@ import { CourseCompletion } from './courses/entities/course-completion.entity';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: true,
-
-      // CAMBIO AQUÍ: SSL dinámico
-      ssl: process.env.DB_HOST?.includes('localhost')
-        ? false
-        : { rejectUnauthorized: false },
-
-      extra: process.env.DB_HOST?.includes('localhost')
-        ? {}
-        : {
-            ssl: {
-              rejectUnauthorized: false,
-            },
-          },
+      synchronize: process.env.NODE_ENV !== 'production',
+      ssl: process.env.NODE_ENV === 'production',
+      extra:
+        process.env.NODE_ENV === 'production'
+          ? {
+              ssl: {
+                rejectUnauthorized: false,
+              },
+            }
+          : {},
     }),
-    TypeOrmModule.forFeature([CourseCompletion]),
+    // 2. Agregar CourseEnrollment aquí para que ReportsService pueda usarlo
+    TypeOrmModule.forFeature([
+      CourseCompletion,
+      CourseEnrollment,
+      Course,
+      User,
+    ]),
     CoursesModule,
   ],
   controllers: [AuthController, UsersController, ReportsController],
-  // Registramos el ReportsService para que el controlador pueda usarlo
   providers: [AuthService, ReportsService],
 })
 export class AppModule {}

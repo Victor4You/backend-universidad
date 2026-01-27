@@ -1,8 +1,10 @@
-// src/reports/reports.service.ts
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CourseCompletion } from '../courses/entities/course-completion.entity';
+import { CourseEnrollment } from '../courses/entities/course-enrollment.entity';
+import { Course } from '../courses/entities/course.entity';
+import { User } from '../users/user.entity';
 import * as ExcelJS from 'exceljs';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
@@ -13,33 +15,49 @@ export class ReportsService {
   constructor(
     @InjectRepository(CourseCompletion)
     private completionRepo: Repository<CourseCompletion>,
+    @InjectRepository(CourseEnrollment)
+    private enrollmentRepo: Repository<CourseEnrollment>,
+    @InjectRepository(Course)
+    private courseRepo: Repository<Course>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
   ) {}
 
-  /**
-   * Genera el archivo (PDF, Excel, CSV, JSON) según el periodo seleccionado
-   */
   async generateFile(format: string, filters: any): Promise<Buffer> {
     const { start, end, label } = this.calculateDateRange(filters);
 
-    let data = await this.completionRepo.find({
-      where: { completedAt: Between(start, end) },
-      relations: { user: true, course: true },
-      order: { completedAt: 'DESC' },
-    });
+    let rawData: CourseEnrollment[];
 
-    if (!data || data.length === 0) {
-      data = await this.completionRepo.find({
-        take: 50,
-        relations: { user: true, course: true },
-        order: { completedAt: 'DESC' },
+    try {
+      // Cargamos las relaciones para asegurar que el objeto 'user' y 'course' existan
+      rawData = await this.enrollmentRepo.find({
+        relations: ['user', 'course'], // Cruce directo con la tabla users
+        order: { id: 'DESC' } as any,
+      });
+    } catch (error) {
+      rawData = await this.enrollmentRepo.find({
+        relations: ['user', 'course'],
       });
     }
 
-    if (!data || data.length === 0) {
+    const filteredData = rawData.filter((item) => {
+      if (!(item as any).createdAt && !(item as any).enrolledAt) return true;
+      const itemDate = new Date(
+        (item as any).createdAt || (item as any).enrolledAt,
+      );
+      return itemDate >= start && itemDate <= end;
+    });
+
+    const finalData =
+      filteredData.length > 0 ? filteredData : rawData.slice(0, 50);
+
+    if (!finalData || finalData.length === 0) {
       throw new NotFoundException(
-        `Aún no hay cursos completados en el sistema.`,
+        `No se encontraron inscripciones en el sistema.`,
       );
     }
+
+    const data = await this.mapEnrollmentsWithData(finalData);
 
     this.logger.log(`Generando reporte [${label}]. Registros: ${data.length}`);
 
@@ -56,14 +74,55 @@ export class ReportsService {
     }
   }
 
+  private async mapEnrollmentsWithData(enrollments: any[]) {
+    const userIds = enrollments.map((c) => String(c.userId));
+    const courseIds = enrollments.map((c) => String(c.courseId));
+
+    const completions = await this.completionRepo.find({
+      where: {
+        userId: In(userIds),
+        courseId: In(courseIds),
+      },
+    });
+
+    return enrollments.map((enroll) => {
+      const completion = completions.find(
+        (comp) =>
+          String(comp.userId) === String(enroll.userId) &&
+          String(comp.courseId) === String(enroll.courseId),
+      );
+
+      const fechaReferencia =
+        (enroll as any).createdAt || (enroll as any).enrolledAt || new Date();
+
+      // Priorizamos 'name' que es el campo real de tu User entity
+      const nombreAlumno =
+        enroll.user?.name ||
+        enroll.userName ||
+        enroll.userUsername ||
+        `ID: ${enroll.userId}`;
+
+      // DEFINICIÓN QUE FALTABA: Obtenemos el nombre del curso de la relación
+      const nombreCurso =
+        enroll.course?.nombre || enroll.course?.title || 'Curso Desconocido';
+
+      return {
+        ...enroll,
+        completedAt: completion?.completedAt || fechaReferencia,
+        studentName: nombreAlumno,
+        courseName: nombreCurso, // Ahora sí encontrará la variable
+        score: completion ? completion.score : 0,
+        status: completion ? 'Completado' : 'En progreso',
+      };
+    });
+  }
+
   private calculateDateRange(filters: any) {
     const now = new Date();
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-
     let start = new Date();
     let label = 'Último Mes';
-
     const period = filters?.period || 'month';
 
     switch (period) {
@@ -104,11 +163,8 @@ export class ReportsService {
         start.setDate(now.getDate() - 30);
         start.setHours(0, 0, 0, 0);
     }
-
     return { start, end, label };
   }
-
-  // --- MÉTODOS DE GENERACIÓN (CORREGIDOS) ---
 
   private async generatePdfBuffer(
     data: any[],
@@ -120,13 +176,13 @@ export class ReportsService {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    page.drawText('Reporte Académico de Estudiantes', {
+    page.drawText('Reporte Académico General', {
       x: 50,
       y: height - 50,
       size: 18,
       font: boldFont,
     });
-    page.drawText(`Periodo: ${periodLabel}`, {
+    page.drawText(`Periodo: ${periodLabel} (Incluye alumnos en curso)`, {
       x: 50,
       y: height - 70,
       size: 11,
@@ -134,35 +190,9 @@ export class ReportsService {
       color: rgb(0.3, 0.3, 0.3),
     });
 
-    const tableTop = height - 110;
     const colX = { fecha: 50, alumno: 130, curso: 300, nota: 500 };
+    let yPosition = height - 135;
 
-    page.drawText('Fecha', {
-      x: colX.fecha,
-      y: tableTop,
-      size: 10,
-      font: boldFont,
-    });
-    page.drawText('Alumno', {
-      x: colX.alumno,
-      y: tableTop,
-      size: 10,
-      font: boldFont,
-    });
-    page.drawText('Curso', {
-      x: colX.curso,
-      y: tableTop,
-      size: 10,
-      font: boldFont,
-    });
-    page.drawText('Nota', {
-      x: colX.nota,
-      y: tableTop,
-      size: 10,
-      font: boldFont,
-    });
-
-    let yPosition = tableTop - 25;
     data.forEach((item) => {
       if (yPosition < 50) {
         page = pdfDoc.addPage();
@@ -171,18 +201,14 @@ export class ReportsService {
       const fecha = item.completedAt
         ? new Date(item.completedAt).toLocaleDateString()
         : 'N/A';
-      const alumno = String(item.user?.name || 'Estudiante').substring(0, 25);
-      const curso = String(item.course?.nombre || 'Curso').substring(0, 35);
+      const alumno = String(item.studentName).substring(0, 30);
+      const curso = String(item.courseName).substring(0, 35);
+      const nota = item.score > 0 ? String(item.score) : 'Pte.';
 
       page.drawText(fecha, { x: colX.fecha, y: yPosition, size: 9, font });
       page.drawText(alumno, { x: colX.alumno, y: yPosition, size: 9, font });
       page.drawText(curso, { x: colX.curso, y: yPosition, size: 9, font });
-      page.drawText(String(item.score || 0), {
-        x: colX.nota,
-        y: yPosition,
-        size: 9,
-        font,
-      });
+      page.drawText(nota, { x: colX.nota, y: yPosition, size: 9, font });
       yPosition -= 18;
     });
 
@@ -209,24 +235,78 @@ export class ReportsService {
       { header: 'Alumno', key: 'alumno', width: 25 },
       { header: 'Curso', key: 'curso', width: 35 },
       { header: 'Nota', key: 'score', width: 12 },
+      { header: 'Estado', key: 'status', width: 15 },
     ];
     data.forEach((item) =>
       worksheet.addRow({
         fecha: item.completedAt
           ? new Date(item.completedAt).toLocaleDateString()
           : 'N/A',
-        alumno: item.user?.name || 'N/A',
-        curso: item.course?.nombre || 'N/A',
+        alumno: item.studentName || 'N/A',
+        curso: item.courseName || 'N/A',
         score: item.score || 0,
+        status: item.status,
       }),
     );
   }
 
   async getAcademicStats() {
-    const completions = await this.completionRepo.find({
-      relations: { course: true },
-    });
-    // ... (Tu lógica de estadísticas de rendimiento y rangos aquí se mantiene igual)
-    return { total: completions.length /* ... otros datos */ };
+    // ... (Tu código de estadísticas se mantiene sin cambios)
+    try {
+      const completions = await this.completionRepo.find();
+      const enrollments = await this.enrollmentRepo.find();
+      const courses = await this.courseRepo.find();
+      const totalCalificaciones = completions.length;
+      const totalInscripciones = enrollments.length;
+      const rangos = [
+        { rango: '0-59', min: 0, max: 59, color: '#EF4444', cantidad: 0 },
+        { rango: '60-75', min: 60, max: 75, color: '#F59E0B', cantidad: 0 },
+        { rango: '76-85', min: 76, max: 85, color: '#10B981', cantidad: 0 },
+        { rango: '86-95', min: 86, max: 95, color: '#3B82F6', cantidad: 0 },
+        { rango: '96-100', min: 96, max: 100, color: '#8B5CF6', cantidad: 0 },
+      ];
+      completions.forEach((c) => {
+        const score = Number(c.score);
+        const rango = rangos.find((r) => score >= r.min && score <= r.max);
+        if (rango) rango.cantidad++;
+      });
+      const distribucion = rangos.map((r) => ({
+        ...r,
+        porcentaje:
+          totalCalificaciones > 0
+            ? Math.round((r.cantidad / totalCalificaciones) * 100)
+            : 0,
+      }));
+      const cursosMap = new Map();
+      completions.forEach((c) => {
+        const cursoObj = courses.find(
+          (co) => Number(co.id) === Number(c.courseId),
+        );
+        const nombre = cursoObj?.nombre || 'Curso Desconocido';
+        if (!cursosMap.has(nombre)) {
+          cursosMap.set(nombre, { suma: 0, count: 0, aprobados: 0 });
+        }
+        const stats = cursosMap.get(nombre);
+        stats.suma += Number(c.score);
+        stats.count++;
+        if (Number(c.score) >= 60) stats.aprobados++;
+      });
+      const rendimiento = Array.from(cursosMap.entries())
+        .map(([curso, s]) => ({
+          curso,
+          promedio: Math.round(s.suma / s.count),
+          aprobados: s.aprobados,
+          reprobados: s.count - s.aprobados,
+        }))
+        .slice(0, 5);
+      return {
+        totalInscripciones,
+        totalCalificaciones,
+        distribucion,
+        rendimiento,
+      };
+    } catch (error) {
+      throw new Error('Error al procesar estadísticas académicas');
+    }
   }
 }

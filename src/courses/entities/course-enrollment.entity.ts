@@ -3,27 +3,39 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
-  ManyToOne, // Añadir esto
-  JoinColumn, // Añadir esto
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
-import { Course } from './course.entity'; // Asegúrate de importar tu entidad Course
+import { Course } from './course.entity';
+import { User } from '../../users/user.entity';
 
 @Entity('course_enrollments')
 export class CourseEnrollment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  courseId: string;
-
-  // Definimos la relación con el curso
-  @ManyToOne(() => Course, (course) => course.estudiantesInscritos) // Cambiado de .enrollments a .estudiantesInscritos
-  @JoinColumn({ name: 'courseId' })
-  course: Course;
+  @Column({ type: 'integer' })
+  courseId: number;
 
   @Column()
   userId: number;
 
+  @Column({ nullable: true })
+  userName: string;
+
+  @Column({ nullable: true })
+  userUsername: string;
+
   @CreateDateColumn()
   enrolledAt: Date;
+
+  @ManyToOne(() => Course, (course) => course.estudiantesInscritos)
+  @JoinColumn({ name: 'courseId' })
+  course: Course;
+
+  // ESTA ES LA SOLUCIÓN DEFINITIVA:
+  // createForeignKeyConstraint: false evita que el servidor falle al conectar
+  @ManyToOne(() => User, { createForeignKeyConstraints: false })
+  @JoinColumn({ name: 'userId', referencedColumnName: 'id' })
+  user: User;
 }

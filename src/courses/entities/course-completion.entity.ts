@@ -3,31 +3,19 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  ManyToOne,
-  JoinColumn,
 } from 'typeorm';
-import { Course } from './course.entity'; // Importa tu entidad de cursos
-import { User } from '../../users/user.entity'; // Importa tu entidad de usuarios
 
 @Entity('course_completions')
 export class CourseCompletion {
+  // <--- ASEGÚRATE QUE DIGA 'export class'
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
   userId: number;
 
-  @Column()
-  courseId: string;
-
-  // ESTO ES LO QUE FALTABA: Relaciones para acceder a los objetos completos
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'userId' })
-  user: User;
-
-  @ManyToOne(() => Course)
-  @JoinColumn({ name: 'courseId' })
-  course: Course;
+  @Column({ type: 'integer', nullable: true }) // Añadir nullable: true y especificar type
+  courseId: number; // Cambiar de string a number para consistencia
 
   @Column({ type: 'float', nullable: true })
   score: number;
