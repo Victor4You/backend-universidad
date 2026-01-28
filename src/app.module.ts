@@ -25,7 +25,7 @@ import { CourseEnrollment } from './courses/entities/course-enrollment.entity'; 
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       entities: [User, Course, CourseCompletion, CourseEnrollment],
-      synchronize: true,
+      synchronize: process.env.NODE_ENV !== 'production',
 
       ssl: process.env.NODE_ENV === 'production',
       extra:
