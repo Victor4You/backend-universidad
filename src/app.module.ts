@@ -24,8 +24,9 @@ import { CourseEnrollment } from './courses/entities/course-enrollment.entity'; 
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: process.env.NODE_ENV !== 'production',
+      entities: [User, Course, CourseCompletion, CourseEnrollment],
+      synchronize: true,
+
       ssl: process.env.NODE_ENV === 'production',
       extra:
         process.env.NODE_ENV === 'production'
@@ -36,7 +37,6 @@ import { CourseEnrollment } from './courses/entities/course-enrollment.entity'; 
             }
           : {},
     }),
-    // 2. Agregar CourseEnrollment aquí para que ReportsService pueda usarlo
     TypeOrmModule.forFeature([
       CourseCompletion,
       CourseEnrollment,
