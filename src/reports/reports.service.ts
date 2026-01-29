@@ -26,187 +26,63 @@ export class ReportsService {
 
   async generateFile(format: string, filters: any): Promise<Buffer> {
     const { start, end, label } = this.calculateDateRange(filters);
+    const categorias = filters.categorias || filters.categories || [];
+    const reportData: any = { label, sections: {} };
 
-    // Normalizamos el nombre que viene del front
-    const categorias = filters.categorias || [];
+    // --- ESTA ES LA LÍNEA QUE FALTABA ---
+    const allUsers = await this.userRepo.find();
 
-    const reportData: any = {
-      label,
-      sections: {},
-    };
-
-    // 1. MATRÍCULAS (Ajustado para asegurar que traiga datos)
-    if (categorias.includes('matriculas')) {
-      const allUsers = await this.userRepo.find();
-      const enrolls = await this.enrollmentRepo.find({ relations: ['course'] });
-
-      if (allUsers.length > 0) {
-        reportData.sections['Matrículas'] = allUsers.map((u) => {
-          const hasEnroll = enrolls.find(
-            (e) => Number(e.userId) === Number(u.id),
-          );
-          return {
-            fecha: 'N/A',
-            alumno: u.name,
-            curso: hasEnroll?.course?.nombre || 'Sin curso asignado',
-            nota: '-',
-            estado: hasEnroll ? 'Activo' : 'Sin actividad',
-          };
-        });
-      }
-    }
-
-    // 2. CALIFICACIONES
+    // 1. CALIFICACIONES
     if (categorias.includes('calificaciones')) {
       const completions = await this.completionRepo.find({
         where: { completedAt: Between(start, end) },
       });
-      const users = await this.userRepo.find();
-      const courses = await this.courseRepo.find();
 
-      reportData.sections['Calificaciones'] = completions.map((c: any) => {
-        const user = users.find((u) => Number(u.id) === Number(c.userId));
-        const course = courses.find(
-          (co) => Number(co.id) === Number(c.courseId),
-        );
+      reportData.sections['Calificaciones'] = completions.map((c) => {
+        const user = allUsers.find((u) => Number(u.id) === Number(c.userId));
         return {
-          fecha: new Date(c.completedAt).toLocaleDateString(),
-          alumno: user?.name || 'Usuario desconocido',
-          curso: course?.nombre || 'Curso no especificado',
-          nota: String(c.score),
-          estado: 'Completado',
+          USUARIO: user?.name || `ID: ${c.userId}`,
+          PROMEDIO: c.score !== null ? `${c.score}` : '0',
         };
       });
     }
 
-    // 3. LÓGICA DE INSCRIPCIONES (Por defecto si no hay nada o si se marca)
-    if (categorias.includes('inscripciones') || categorias.length === 0) {
-      const enrolls = await this.enrollmentRepo.find({
-        where: { enrolledAt: Between(start, end) },
-        relations: ['user', 'course'],
+    // 2. ASISTENCIAS
+    if (categorias.includes('asistencias')) {
+      const completions = await this.completionRepo.find({
+        where: { completedAt: Between(start, end) },
       });
 
-      const mapped = await this.mapEnrollmentsWithData(enrolls);
-      reportData.sections['Inscripciones'] = mapped.map((m) => ({
-        fecha: new Date(m.enrolledAt || new Date()).toLocaleDateString(),
-        alumno: m.studentName,
-        curso: m.courseName,
-        nota: m.score > 0 ? String(m.score) : 'Pte.',
-        estado: m.status,
+      reportData.sections['Asistencias'] = completions.map((c) => {
+        const user = allUsers.find((u) => Number(u.id) === Number(c.userId));
+        return {
+          ALUMNO: user?.name || `ID: ${c.userId}`,
+          FECHA: new Date(c.completedAt).toLocaleDateString('es-MX'),
+        };
+      });
+    }
+
+    // 3. INSCRIPCIONES (Este ya funcionaba)
+    if (categorias.includes('inscripciones')) {
+      const enrolls = await this.enrollmentRepo.find({
+        where: { enrolledAt: Between(start, end) },
+        relations: ['course', 'user'],
+      });
+      reportData.sections['Inscripciones'] = enrolls.map((e) => ({
+        ALUMNO: e.user?.name || e.userName || `ID: ${e.userId}`,
+        CURSOS: e.course?.nombre || 'Curso',
       }));
     }
 
-    // Validar si hay datos
     if (Object.keys(reportData.sections).length === 0) {
       throw new NotFoundException(
-        'No hay datos para las categorías seleccionadas.',
+        'No se encontraron registros en el rango de fechas seleccionado.',
       );
     }
 
-    switch (format) {
-      case 'json':
-        return Buffer.from(JSON.stringify(reportData, null, 2));
-      case 'pdf':
-        // Pasamos las secciones por separado para que el PDF las dibuje con títulos
-        return await this.generatePdfBuffer(reportData.sections, label);
-      case 'csv':
-      case 'excel':
-      default:
-        const flatData = Object.values(reportData.sections).flat();
-        return format === 'csv'
-          ? await this.generateCsvBuffer(flatData)
-          : await this.generateExcelBuffer(flatData);
-    }
-  }
-
-  private async mapEnrollmentsWithData(enrollments: any[]) {
-    const userIds = enrollments
-      .map((c) => String(c?.userId))
-      .filter((id) => id && id !== 'undefined');
-    const courseIds = enrollments
-      .map((c) => String(c?.courseId))
-      .filter((id) => id && id !== 'undefined');
-
-    const completions = await this.completionRepo
-      .find({
-        where: { userId: In(userIds), courseId: In(courseIds) },
-      })
-      .catch(() => []);
-
-    return enrollments.map((enroll) => {
-      const completion = completions.find(
-        (comp: any) =>
-          String(comp?.userId) === String(enroll?.userId) &&
-          String(comp?.courseId) === String(enroll?.courseId),
-      );
-
-      const nombreAlumno =
-        enroll?.user?.name ||
-        enroll?.userName ||
-        `Estudiante ID: ${enroll?.userId || 'N/A'}`;
-      const nombreCurso =
-        enroll?.course?.nombre ||
-        enroll?.course?.title ||
-        'Curso no especificado';
-
-      return {
-        ...enroll,
-        completedAt: (completion as any)?.completedAt || enroll.enrolledAt,
-        studentName: nombreAlumno,
-        courseName: nombreCurso,
-        score: completion ? Number((completion as any).score) || 0 : 0,
-        status: completion ? 'Completado' : 'En progreso',
-      };
-    });
-  }
-
-  private calculateDateRange(filters: any) {
-    const now = new Date();
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    let start = new Date();
-    let label = 'Último Mes';
-    const period = filters?.period || 'month';
-
-    switch (period) {
-      case 'today':
-        start.setHours(0, 0, 0, 0);
-        label = 'Hoy';
-        break;
-      case 'week':
-        start.setDate(now.getDate() - 7);
-        start.setHours(0, 0, 0, 0);
-        label = 'Última Semana';
-        break;
-      case 'month':
-        start.setDate(now.getDate() - 30);
-        start.setHours(0, 0, 0, 0);
-        label = 'Último Mes';
-        break;
-      case 'quarter':
-        start.setDate(now.getDate() - 90);
-        start.setHours(0, 0, 0, 0);
-        label = 'Último Trimestre';
-        break;
-      case 'year':
-        start.setFullYear(now.getFullYear() - 1);
-        start.setHours(0, 0, 0, 0);
-        label = 'Último Año';
-        break;
-      case 'custom':
-        if (filters.startDate && filters.endDate) {
-          start = new Date(filters.startDate);
-          start.setHours(0, 0, 0, 0);
-          const customEnd = new Date(filters.endDate);
-          customEnd.setHours(23, 59, 59, 999);
-          return { start, end: customEnd, label: 'Personalizado' };
-        }
-        break;
-      default:
-        start.setDate(now.getDate() - 30);
-        start.setHours(0, 0, 0, 0);
-    }
-    return { start, end, label };
+    return format === 'pdf'
+      ? await this.generatePdfBuffer(reportData.sections, label)
+      : await this.generateExcelBuffer(reportData.sections);
   }
 
   private async generatePdfBuffer(
@@ -219,130 +95,121 @@ export class ReportsService {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-    // Título Principal Dinámico
-    const sectionNames = Object.keys(sections);
-    const mainTitle =
-      sectionNames.length === 1
-        ? `Reporte de ${sectionNames[0]}`
-        : 'Reporte Académico Combinado';
-
-    page.drawText(mainTitle, {
+    let y = height - 50;
+    page.drawText(`REPORTE ACADÉMICO - ${periodLabel}`, {
       x: 50,
-      y: height - 50,
-      size: 18,
+      y,
+      size: 16,
       font: boldFont,
     });
-    page.drawText(`Periodo: ${periodLabel}`, {
-      x: 50,
-      y: height - 70,
-      size: 11,
-      font,
-      color: rgb(0.3, 0.3, 0.3),
-    });
+    y -= 40;
 
-    let yPosition = height - 100;
-    const colX = { fecha: 50, alumno: 130, curso: 300, nota: 480 };
-
-    for (const [sectionTitle, items] of Object.entries(sections)) {
-      // Verificar espacio para el título de sección
-      if (yPosition < 100) {
+    for (const [title, items] of Object.entries(sections)) {
+      if (y < 120) {
         page = pdfDoc.addPage();
-        yPosition = height - 50;
+        y = height - 50;
       }
 
-      // Dibujar Título de Sección
+      // Encabezado azul de sección
       page.drawRectangle({
-        x: 45,
-        y: yPosition - 5,
-        width: width - 90,
-        height: 20,
-        color: rgb(0.95, 0.95, 0.95),
-      });
-      page.drawText(sectionTitle.toUpperCase(), {
         x: 50,
-        y: yPosition,
+        y: y - 5,
+        width: width - 100,
+        height: 18,
+        color: rgb(0.1, 0.4, 0.7),
+      });
+      page.drawText(title.toUpperCase(), {
+        x: 55,
+        y,
         size: 10,
         font: boldFont,
-        color: rgb(0.2, 0.2, 0.2),
+        color: rgb(1, 1, 1),
       });
-      yPosition -= 25;
+      y -= 25;
 
-      // Encabezados de tabla
-      page.drawText('FECHA', {
-        x: colX.fecha,
-        y: yPosition,
-        size: 8,
-        font: boldFont,
-      });
-      page.drawText('ALUMNO', {
-        x: colX.alumno,
-        y: yPosition,
-        size: 8,
-        font: boldFont,
-      });
-      page.drawText('CURSO', {
-        x: colX.curso,
-        y: yPosition,
-        size: 8,
-        font: boldFont,
-      });
-      page.drawText('NOTA', {
-        x: colX.nota,
-        y: yPosition,
-        size: 8,
-        font: boldFont,
-      });
-      yPosition -= 15;
+      if (items.length > 0) {
+        const headers = Object.keys(items[0]);
+        // Headers de tabla
+        headers.forEach((h, i) => {
+          page.drawText(h, { x: 50 + i * 250, y, size: 9, font: boldFont });
+        });
+        y -= 15;
 
-      // Datos
-      items.forEach((item) => {
-        if (yPosition < 50) {
-          page = pdfDoc.addPage();
-          yPosition = height - 50;
-        }
-        page.drawText(String(item.fecha), {
-          x: colX.fecha,
-          y: yPosition,
-          size: 7,
-          font,
+        // Filas de datos
+        items.forEach((item) => {
+          if (y < 50) {
+            page = pdfDoc.addPage();
+            y = height - 50;
+          }
+          headers.forEach((h, i) => {
+            page.drawText(String(item[h]).substring(0, 50), {
+              x: 50 + i * 250,
+              y,
+              size: 8,
+              font,
+            });
+          });
+          y -= 12;
         });
-        page.drawText(String(item.alumno).substring(0, 25), {
-          x: colX.alumno,
-          y: yPosition,
-          size: 7,
-          font,
-        });
-        page.drawText(String(item.curso).substring(0, 30), {
-          x: colX.curso,
-          y: yPosition,
-          size: 7,
-          font,
-        });
-        page.drawText(String(item.nota), {
-          x: colX.nota,
-          y: yPosition,
-          size: 7,
-          font,
-        });
-        yPosition -= 12;
-      });
-      yPosition -= 20; // Espacio entre secciones
+      }
+      y -= 30;
     }
-
     return Buffer.from(await pdfDoc.save());
   }
 
-  private async generateExcelBuffer(data: any[]): Promise<Buffer> {
+  private async generateExcelBuffer(
+    sections: Record<string, any[]>,
+  ): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Reporte');
-    this.applyWorksheetSchema(worksheet, data);
+    for (const [title, items] of Object.entries(sections)) {
+      const sheet = workbook.addWorksheet(title);
+      if (items.length > 0) {
+        const headers = Object.keys(items[0]);
+        sheet.columns = headers.map((h) => ({ header: h, key: h, width: 35 }));
+        sheet.addRows(items);
+        sheet.getRow(1).font = { bold: true };
+        sheet.getRow(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE0E0E0' },
+        };
+      }
+    }
     return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  private calculateDateRange(filters: any) {
+    const now = new Date();
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+    let start = new Date();
+    const range = filters?.range || filters?.period || 'mes';
+
+    if (range === 'hoy') start.setHours(0, 0, 0, 0);
+    else if (range === 'semana') start.setDate(now.getDate() - 7);
+    else if (range === 'anio') start.setFullYear(now.getFullYear() - 1);
+    else start.setDate(now.getDate() - 30);
+
+    const labels: Record<string, string> = {
+      hoy: 'Hoy',
+      semana: 'Última Semana',
+      mes: 'Último Mes',
+      anio: 'Último Año',
+    };
+    return { start, end, label: labels[range] || 'Último Mes' };
   }
 
   private async generateCsvBuffer(data: any[]): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Reporte');
-    this.applyWorksheetSchema(worksheet, data);
+    const worksheet = workbook.addWorksheet('Datos');
+    if (data.length > 0) {
+      const headers = Object.keys(data[0]);
+      worksheet.columns = headers.map((h) => ({
+        header: h.toUpperCase(),
+        key: h,
+      }));
+      data.forEach((item) => worksheet.addRow(item));
+    }
     return Buffer.from(await workbook.csv.writeBuffer());
   }
 
