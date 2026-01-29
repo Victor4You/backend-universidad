@@ -17,6 +17,7 @@ export class ReportsController {
 
   @Post('export')
   async exportReport(@Body() exportDto: any, @Res() res: Response) {
+    
     try {
       const { format } = exportDto;
       const buffer = await this.reportsService.generateFile(format, exportDto);

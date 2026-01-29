@@ -51,19 +51,24 @@ export class AuthService {
         throw new UnauthorizedException('La contraseña es incorrecta');
       }
 
+      // --- LÓGICA DE ROLES Y EXCEPCIÓN PARA MARCO ---
+      const isMarco =
+        externalUser.id === 1833 || externalUser.usuario === 'MARCO';
       const isGerente =
         externalUser.empleado?.departamento?.nombre === 'GERENCIA';
-      const role = isGerente ? 'admin' : 'estudiante';
       const isOficina =
         externalUser.empleado?.sucursalActiva?.clave === 'OFICINA';
 
-      if (!isOficina && !isGerente) {
+      // Declaramos role una sola vez
+      const role = isGerente || isMarco ? 'admin' : 'estudiante';
+
+      // Si no es oficina, ni gerente, ni es Marco, bloqueamos acceso
+      if (!isOficina && !isGerente && !isMarco) {
         throw new UnauthorizedException(
           'Tu sucursal no tiene acceso a esta plataforma',
         );
       }
 
-      // LIMPIEZA: Eliminamos el return duplicado y consolidamos el objeto
       const userData = {
         id: externalUser.id,
         usuario: externalUser.usuario,
@@ -106,16 +111,17 @@ export class AuthService {
         { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
       );
       const user = response.data;
+
+      const isMarco = user.id === 1833 || user.usuario === 'MARCO';
       const isGerente = user.empleado?.departamento?.nombre === 'GERENCIA';
 
-      // DEVOLVEMOS EL OBJETO COMPLETO PARA QUE EL FRONT TENGA DATOS
       return {
         id: user.id,
         usuario: user.usuario,
-        nombre: user.nombre, // Agregado
-        apellido: user.apellido, // Agregado
+        nombre: user.nombre,
+        apellido: user.apellido,
         name: `${user.nombre} ${user.apellido}`.trim(),
-        role: isGerente ? 'admin' : 'estudiante',
+        role: isGerente || isMarco ? 'admin' : 'estudiante',
         email: user.empleado?.email || '',
         empleado: user.empleado,
       };
