@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm'; // Importación necesaria
 import { Repository } from 'typeorm'; // Importación necesaria
 import { User } from '../users/user.entity'; // Asegúrate que la ruta sea correcta
+import { ConfigService } from '@nestjs/config';
 
 export interface RegisterDto {
   username?: string;
@@ -31,24 +32,35 @@ interface UniversidadUser {
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private readonly jwtService: JwtService,
-    @InjectRepository(User) private readonly userRepo: Repository<User>, // Inyectado correctamente
-  ) {}
-
   private readonly logger = new Logger(AuthService.name);
-  private readonly EXTERNAL_API_URL =
-    process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
+
+  // Cambiamos estas líneas para usar variables de entorno de forma segura
+  private EXTERNAL_API_URL: string;
   private readonly MASTER_TOKEN =
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
 
+  constructor(
+    private readonly jwtService: JwtService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly configService: ConfigService, // Inyectamos ConfigService
+  ) {
+    // Prioridad: 1. Variable en Vercel/Env, 2. URL de ngrok (si la usas), 3. IP Local
+    this.EXTERNAL_API_URL =
+      this.configService.get<string>('EXTERNAL_API_URL') ||
+      'http://192.168.13.170:3201/v1';
+  }
+
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
     try {
-      const url = `${this.EXTERNAL_API_URL}/usuarios/usuario/${loginDto.username}`;
+      // Aseguramos que la URL esté limpia
+      const baseUrl = this.EXTERNAL_API_URL.replace(/\/$/, '');
+      const url = `${baseUrl}/usuarios/usuario/${loginDto.username}`;
+
       this.logger.log(`Intentando conectar a: ${url}`);
+
       const response = await axios.get<UniversidadUser>(url, {
         headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
-        timeout: 60000,
+        timeout: 15000, // Bajamos a 15s para que Vercel no de timeout antes
       });
 
       const externalUser = response.data;
