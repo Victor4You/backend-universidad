@@ -3,9 +3,9 @@ import axios from 'axios';
 import md5 from 'md5';
 import { LoginDto } from './auth.controller';
 import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm'; // Importación necesaria
-import { Repository } from 'typeorm'; // Importación necesaria
-import { User } from '../users/user.entity'; // Asegúrate que la ruta sea correcta
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { User } from '../users/user.entity';
 import { ConfigService } from '@nestjs/config';
 
 export interface RegisterDto {
@@ -34,7 +34,6 @@ interface UniversidadUser {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  // Cambiamos estas líneas para usar variables de entorno de forma segura
   private EXTERNAL_API_URL: string;
   private readonly MASTER_TOKEN =
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
@@ -44,25 +43,20 @@ export class AuthService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly configService: ConfigService,
   ) {
-    // 1. Forzamos la lectura fresca
-    const envUrl = this.configService.get<string>('EXTERNAL_API_URL');
+    // =========================================================
+    // MODIFICACIÓN: PEGA TU URL DE NGROK AQUÍ
+    // Ejemplo: 'https://a1b2-c3d4.ngrok-free.dev/v1'
+    const miNgrokActual = 'PON_AQUI_TU_URL_DE_NGROK/v1';
+    // =========================================================
 
-    // 2. LOG DE DIAGNÓSTICO (Verás esto en los logs de Vercel)
-    this.logger.warn(`--- DIAGNÓSTICO DE URL ---`);
-    this.logger.warn(`Valor detectado en EXTERNAL_API_URL: "${envUrl}"`);
+    this.EXTERNAL_API_URL = miNgrokActual;
 
-    // 3. Lógica de asignación
-    if (envUrl && envUrl.includes('ngrok-free.dev')) {
-      this.EXTERNAL_API_URL = envUrl.trim().replace(/\/$/, '');
-    } else {
-      // Si no detecta la variable, usa la IP local
-      this.EXTERNAL_API_URL = 'http://192.168.13.170:3201/v1';
-    }
+    this.logger.warn(`--- MODO DESBLOQUEO ACTIVO ---`);
+    this.logger.warn(`Conectando manualmente a: ${this.EXTERNAL_API_URL}`);
   }
 
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
     try {
-      // Aseguramos que la URL esté limpia
       const baseUrl = this.EXTERNAL_API_URL.replace(/\/$/, '');
       const url = `${baseUrl}/usuarios/usuario/${loginDto.username}`;
 
@@ -70,7 +64,7 @@ export class AuthService {
 
       const response = await axios.get<UniversidadUser>(url, {
         headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
-        timeout: 15000, // Bajamos a 15s para que Vercel no de timeout antes
+        timeout: 15000,
       });
 
       const externalUser = response.data;
@@ -113,47 +107,30 @@ export class AuthService {
         }),
       };
 
-      // --- INICIO DE SINCRONIZACIÓN CON DB LOCAL ---
-      // Buscamos si el usuario ya existe en nuestra base de datos de posts
       const userIdToSync = Number(externalUser.id);
-
-      // Buscamos si ya existe
       let localUser = await this.userRepo.findOne({
         where: { id: userIdToSync },
       });
 
       if (!localUser) {
         this.logger.log(`Sincronizando nuevo usuario: ${externalUser.usuario}`);
-
-        // Creamos el objeto siguiendo estrictamente tu entidad
         const newUser = this.userRepo.create({
           id: userIdToSync,
           username: externalUser.usuario,
-          password: externalUser.password, // Necesario según tu entidad
+          password: externalUser.password,
           name: userData.name,
           email: userData.email,
           role: role,
-          avatar: undefined, // Evitamos el error de 'null'
+          avatar: undefined,
         });
-
         await this.userRepo.save(newUser);
       }
-      // --- FIN DE SINCRONIZACIÓN ---
 
       this.logger.log(`Datos enviados al front: ${JSON.stringify(userData)}`);
       return userData;
     } catch (error: any) {
       this.logger.error(`Error en AuthService: ${error.message}`);
       if (error instanceof UnauthorizedException) throw error;
-      if (
-        error.code === 'ECONNABORTED' ||
-        error.code === 'ENOTFOUND' ||
-        error.status === 504
-      ) {
-        throw new UnauthorizedException(
-          'El servidor universitario no responde. Verifica la conexión VPN o IP Pública.',
-        );
-      }
       throw new UnauthorizedException(
         'Error de conexión con el servidor universitario',
       );
