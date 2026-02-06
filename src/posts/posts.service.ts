@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Post } from './entities/post.entity';
@@ -7,6 +7,8 @@ import { User } from '../users/user.entity';
 
 @Injectable()
 export class PostsService {
+  private readonly logger = new Logger(PostsService.name);
+
   constructor(
     @InjectRepository(Post) private postRepo: Repository<Post>,
     @InjectRepository(Comment) private commentRepo: Repository<Comment>,
@@ -14,56 +16,65 @@ export class PostsService {
   ) {}
 
   async create(content: string, userId: string, file?: Express.Multer.File) {
-    // 1. Aseguramos que el ID sea un número válido (Local y Vercel pueden variar)
-    const parsedId = Number(userId);
+    try {
+      const parsedId = Number(userId);
+      const user = await this.userRepo.findOneBy({ id: parsedId as any });
 
-    // 2. Buscamos al usuario de forma segura
-    const user = await this.userRepo.findOneBy({ id: parsedId as any });
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
 
-    if (!user) {
-      // Si ves esto en el Alert, es que el ID del token no existe en tu tabla 'User'
-      throw new NotFoundException('Usuario no encontrado');
+      // Creamos el objeto de forma explícita para evitar que TypeORM
+      // herede campos extraños que no existen en la tabla 'posts'
+      const newPost = new Post();
+      newPost.content = content || '';
+      newPost.user = user;
+      newPost.likedBy = [];
+      newPost.likesCount = 0;
+      newPost.timestamp = new Date();
+
+      if (file) {
+        const base64Data = file.buffer.toString('base64');
+        newPost.mediaUrl = `data:${file.mimetype};base64,${base64Data}`;
+        newPost.mediaName = file.originalname;
+        newPost.mediaType = file.mimetype.startsWith('image/')
+          ? 'image'
+          : 'file';
+      }
+
+      // Guardamos usando save del repositorio
+      const savedPost = await this.postRepo.save(newPost);
+      return this.formatPost(savedPost);
+    } catch (error) {
+      this.logger.error(`Error creando post en Vercel: ${error.message}`);
+      throw error;
     }
-
-    const newPost = this.postRepo.create({
-      content: content || '', // Evitamos fallos si el contenido llega vacío
-      user: user,
-      likedBy: [],
-      likesCount: 0,
-      timestamp: new Date(),
-    });
-    if (file) {
-      const base64Data = file.buffer.toString('base64');
-      newPost.mediaUrl = `data:${file.mimetype};base64,${base64Data}`;
-      newPost.mediaName = file.originalname;
-      newPost.mediaType = file.mimetype.startsWith('image/') ? 'image' : 'file';
-    }
-
-    const savedPost = await this.postRepo.save(newPost);
-    // Retornamos el post formateado para que el frontend lo pinte bien al instante
-    return this.formatPost(savedPost);
   }
 
   async findAll() {
-    const posts = await this.postRepo.find({
-      relations: ['user', 'comments', 'comments.user'],
-      order: { timestamp: 'DESC' },
-    });
-
-    // Mapeamos los resultados para que coincidan con la interfaz del Frontend
-    return posts.map((post) => this.formatPost(post));
+    try {
+      const posts = await this.postRepo.find({
+        relations: ['user', 'comments', 'comments.user'],
+        order: { timestamp: 'DESC' },
+      });
+      return posts.map((post) => this.formatPost(post));
+    } catch (error) {
+      this.logger.error(`Error buscando posts: ${error.message}`);
+      return [];
+    }
   }
 
-  // Función auxiliar para transformar la entidad DB a la interfaz Post del Frontend
   private formatPost(post: Post) {
     return {
       id: post.id.toString(),
       content: post.content,
-      timestamp: post.timestamp.toISOString(),
+      timestamp: post.timestamp
+        ? post.timestamp.toISOString()
+        : new Date().toISOString(),
       likes: post.likesCount || 0,
-      liked: false, // Esto se calcularía comparando con el userId actual si fuera necesario
+      liked: false,
       user: {
-        id: post.user?.id.toString(),
+        id: post.user?.id?.toString(),
         name: post.user?.name || 'Usuario desconocido',
         role: post.user?.role || 'user',
         avatar: post.user?.avatar || null,
@@ -82,16 +93,19 @@ export class PostsService {
   }
 
   async toggleLike(postId: string, userId: string) {
-    const post = await this.postRepo.findOneBy({ id: postId });
+    const post = await this.postRepo.findOneBy({ id: Number(postId) as any });
     if (!post) throw new NotFoundException('Post no encontrado');
+
+    // Inicializamos likedBy si llega como null desde la DB
+    if (!post.likedBy) post.likedBy = [];
 
     const index = post.likedBy.indexOf(userId);
     if (index === -1) {
       post.likedBy.push(userId);
-      post.likesCount++;
+      post.likesCount = (post.likesCount || 0) + 1;
     } else {
       post.likedBy.splice(index, 1);
-      post.likesCount--;
+      post.likesCount = Math.max(0, (post.likesCount || 0) - 1);
     }
 
     const saved = await this.postRepo.save(post);
@@ -99,7 +113,7 @@ export class PostsService {
   }
 
   async addComment(postId: string, userId: string, content: string) {
-    const post = await this.postRepo.findOneBy({ id: postId });
+    const post = await this.postRepo.findOneBy({ id: Number(postId) as any });
     const user = await this.userRepo.findOneBy({ id: Number(userId) as any });
 
     if (!post || !user) {
@@ -113,7 +127,6 @@ export class PostsService {
     });
 
     await this.commentRepo.save(comment);
-    // Devolvemos el post completo actualizado con el nuevo comentario
     return this.findAll();
   }
 }
