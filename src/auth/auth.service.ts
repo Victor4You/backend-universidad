@@ -44,8 +44,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {
     // =========================================================
-    // MODIFICACIÓN: PEGA TU URL DE NGROK AQUÍ
-    // Ejemplo: 'https://a1b2-c3d4.ngrok-free.dev/v1'
+    // MODIFICACIÓN: URL DE NGROK (Asegúrate que sea la actual)
     const miNgrokActual =
       'https://uneuphoniously-enteral-shelia.ngrok-free.dev/v1';
     // =========================================================
@@ -115,6 +114,8 @@ export class AuthService {
 
       if (!localUser) {
         this.logger.log(`Sincronizando nuevo usuario: ${externalUser.usuario}`);
+
+        // CORRECCIÓN: Eliminamos el campo 'avatar' porque no existe en tu DB
         const newUser = this.userRepo.create({
           id: userIdToSync,
           username: externalUser.usuario,
@@ -122,8 +123,8 @@ export class AuthService {
           name: userData.name,
           email: userData.email,
           role: role,
-          avatar: undefined,
         });
+
         await this.userRepo.save(newUser);
       }
 
