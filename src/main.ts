@@ -11,15 +11,14 @@ let app: INestApplication;
  * Configuración compartida de la aplicación
  */
 function setupApp(instance: INestApplication): void {
-  // Tipamos la instancia de express para evitar los errores de ESLint
   const expressInstance = instance
     .getHttpAdapter()
     .getInstance() as express.Application;
 
-  expressInstance.use(express.json({ limit: '10mb' }));
-  expressInstance.use(express.urlencoded({ limit: '10mb', extended: true }));
+  // Ajuste de límite para soportar imágenes de cámaras modernas
+  expressInstance.use(express.json({ limit: '50mb' }));
+  expressInstance.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-  /**instance.use('/uploads', express.static(join(process.cwd(), 'uploads')));**/
   instance.setGlobalPrefix('v1');
 
   instance.enableCors({

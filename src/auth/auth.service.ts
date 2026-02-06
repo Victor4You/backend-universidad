@@ -2,6 +2,11 @@ import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import axios from 'axios';
 import md5 from 'md5';
 import { LoginDto } from './auth.controller';
+import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm'; // Importación necesaria
+import { Repository } from 'typeorm'; // Importación necesaria
+import { User } from '../users/user.entity'; // Asegúrate que la ruta sea correcta
+
 export interface RegisterDto {
   username?: string;
   password?: string;
@@ -19,13 +24,18 @@ interface UniversidadUser {
     departamento?: { nombre: string };
     sucursalActiva?: {
       clave: string;
-      nombre: string; // <--- AGREGAR ESTO
+      nombre: string;
     };
   };
 }
 
 @Injectable()
 export class AuthService {
+  constructor(
+    private readonly jwtService: JwtService,
+    @InjectRepository(User) private readonly userRepo: Repository<User>, // Inyectado correctamente
+  ) {}
+
   private readonly logger = new Logger(AuthService.name);
   private readonly EXTERNAL_API_URL =
     process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
@@ -51,7 +61,6 @@ export class AuthService {
         throw new UnauthorizedException('La contraseña es incorrecta');
       }
 
-      // --- LÓGICA DE ROLES Y EXCEPCIÓN PARA MARCO ---
       const isMarco =
         externalUser.id === 1833 || externalUser.usuario === 'MARCO';
       const isGerente =
@@ -59,10 +68,8 @@ export class AuthService {
       const isOficina =
         externalUser.empleado?.sucursalActiva?.clave === 'OFICINA';
 
-      // Declaramos role una sola vez
       const role = isGerente || isMarco ? 'admin' : 'estudiante';
 
-      // Si no es oficina, ni gerente, ni es Marco, bloqueamos acceso
       if (!isOficina && !isGerente && !isMarco) {
         throw new UnauthorizedException(
           'Tu sucursal no tiene acceso a esta plataforma',
@@ -77,17 +84,45 @@ export class AuthService {
         name: `${externalUser.nombre} ${externalUser.apellido}`.trim(),
         role: role,
         email: externalUser.empleado?.email || '',
-        token: 'token_memoria_activa',
+        token: this.jwtService.sign({
+          sub: externalUser.id,
+          username: externalUser.usuario,
+          role: role,
+        }),
       };
+
+      // --- INICIO DE SINCRONIZACIÓN CON DB LOCAL ---
+      // Buscamos si el usuario ya existe en nuestra base de datos de posts
+      const userIdToSync = Number(externalUser.id);
+
+      // Buscamos si ya existe
+      let localUser = await this.userRepo.findOne({
+        where: { id: userIdToSync },
+      });
+
+      if (!localUser) {
+        this.logger.log(`Sincronizando nuevo usuario: ${externalUser.usuario}`);
+
+        // Creamos el objeto siguiendo estrictamente tu entidad
+        const newUser = this.userRepo.create({
+          id: userIdToSync,
+          username: externalUser.usuario,
+          password: externalUser.password, // Necesario según tu entidad
+          name: userData.name,
+          email: userData.email,
+          role: role,
+          avatar: undefined, // Evitamos el error de 'null'
+        });
+
+        await this.userRepo.save(newUser);
+      }
+      // --- FIN DE SINCRONIZACIÓN ---
 
       this.logger.log(`Datos enviados al front: ${JSON.stringify(userData)}`);
       return userData;
     } catch (error: any) {
       this.logger.error(`Error en AuthService: ${error.message}`);
-
       if (error instanceof UnauthorizedException) throw error;
-
-      // Error específico si la IP no es alcanzable (típico en Vercel)
       if (
         error.code === 'ECONNABORTED' ||
         error.code === 'ENOTFOUND' ||
@@ -97,7 +132,6 @@ export class AuthService {
           'El servidor universitario no responde. Verifica la conexión VPN o IP Pública.',
         );
       }
-
       throw new UnauthorizedException(
         'Error de conexión con el servidor universitario',
       );
@@ -111,10 +145,8 @@ export class AuthService {
         { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
       );
       const user = response.data;
-
       const isMarco = user.id === 1833 || user.usuario === 'MARCO';
       const isGerente = user.empleado?.departamento?.nombre === 'GERENCIA';
-
       return {
         id: user.id,
         usuario: user.usuario,
@@ -132,15 +164,12 @@ export class AuthService {
 
   async getUsersBySucursal(sucursalId: string): Promise<any[]> {
     try {
-      // Agregamos <UniversidadUser[]> aquí
       const response = await axios.get<UniversidadUser[]>(
         `${this.EXTERNAL_API_URL}/usuarios/sucursal/${sucursalId}`,
         { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
       );
-
       if (Array.isArray(response.data)) {
         return response.data.map((user: UniversidadUser) => ({
-          // Tipamos el map
           id: user.id,
           usuario: user.usuario,
           nombre: user.nombre,
@@ -165,7 +194,6 @@ export class AuthService {
           timeout: 5000,
         },
       );
-
       if (Array.isArray(response.data)) {
         return response.data
           .filter(
@@ -195,7 +223,6 @@ export class AuthService {
   }
 
   register(_registerDto: RegisterDto): Promise<Record<string, any>> {
-    // Agregamos guion bajo
     return Promise.resolve({
       message: 'Gestión centralizada.',
     });
