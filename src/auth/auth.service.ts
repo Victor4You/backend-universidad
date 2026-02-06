@@ -42,12 +42,22 @@ export class AuthService {
   constructor(
     private readonly jwtService: JwtService,
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-    private readonly configService: ConfigService, // Inyectamos ConfigService
+    private readonly configService: ConfigService,
   ) {
-    // Prioridad: 1. Variable en Vercel/Env, 2. URL de ngrok (si la usas), 3. IP Local
-    this.EXTERNAL_API_URL =
-      this.configService.get<string>('EXTERNAL_API_URL') ||
-      'http://192.168.13.170:3201/v1';
+    // 1. Forzamos la lectura fresca
+    const envUrl = this.configService.get<string>('EXTERNAL_API_URL');
+
+    // 2. LOG DE DIAGNÓSTICO (Verás esto en los logs de Vercel)
+    this.logger.warn(`--- DIAGNÓSTICO DE URL ---`);
+    this.logger.warn(`Valor detectado en EXTERNAL_API_URL: "${envUrl}"`);
+
+    // 3. Lógica de asignación
+    if (envUrl && envUrl.includes('ngrok-free.dev')) {
+      this.EXTERNAL_API_URL = envUrl.trim().replace(/\/$/, '');
+    } else {
+      // Si no detecta la variable, usa la IP local
+      this.EXTERNAL_API_URL = 'http://192.168.13.170:3201/v1';
+    }
   }
 
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
