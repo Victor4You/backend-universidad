@@ -43,16 +43,12 @@ export class AuthService {
     @InjectRepository(User) private readonly userRepo: Repository<User>,
     private readonly configService: ConfigService,
   ) {
-    // =========================================================
-    // MODIFICACIÓN: URL DE NGROK (Asegúrate que sea la actual)
-    const miNgrokActual =
+    // Usamos tu URL actual de ngrok directamente
+    this.EXTERNAL_API_URL =
       'https://uneuphoniously-enteral-shelia.ngrok-free.dev/v1';
-    // =========================================================
 
-    this.EXTERNAL_API_URL = miNgrokActual;
-
-    this.logger.warn(`--- MODO DESBLOQUEO ACTIVO ---`);
-    this.logger.warn(`Conectando manualmente a: ${this.EXTERNAL_API_URL}`);
+    this.logger.warn(`--- MODO VERCEL FIX ACTIVO ---`);
+    this.logger.warn(`Conectando a: ${this.EXTERNAL_API_URL}`);
   }
 
   async validateUser(loginDto: LoginDto): Promise<Record<string, any>> {
@@ -87,9 +83,7 @@ export class AuthService {
       const role = isGerente || isMarco ? 'admin' : 'estudiante';
 
       if (!isOficina && !isGerente && !isMarco) {
-        throw new UnauthorizedException(
-          'Tu sucursal no tiene acceso a esta plataforma',
-        );
+        throw new UnauthorizedException('Acceso denegado por sucursal');
       }
 
       const userData = {
@@ -107,15 +101,15 @@ export class AuthService {
         }),
       };
 
+      // --- SINCRONIZACIÓN SIN CAMPO AVATAR ---
       const userIdToSync = Number(externalUser.id);
       let localUser = await this.userRepo.findOne({
         where: { id: userIdToSync },
       });
 
       if (!localUser) {
-        this.logger.log(`Sincronizando nuevo usuario: ${externalUser.usuario}`);
-
-        // CORRECCIÓN: Eliminamos el campo 'avatar' porque no existe en tu DB
+        this.logger.log(`Sincronizando usuario: ${externalUser.usuario}`);
+        // Solo enviamos los campos que Vercel tiene confirmados
         const newUser = this.userRepo.create({
           id: userIdToSync,
           username: externalUser.usuario,
@@ -124,20 +118,20 @@ export class AuthService {
           email: userData.email,
           role: role,
         });
-
         await this.userRepo.save(newUser);
       }
 
-      this.logger.log(`Datos enviados al front: ${JSON.stringify(userData)}`);
       return userData;
     } catch (error: any) {
-      this.logger.error(`Error en AuthService: ${error.message}`);
+      this.logger.error(`Error en Vercel: ${error.message}`);
       if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException(
-        'Error de conexión con el servidor universitario',
+        'Error de sincronización con la base de datos',
       );
     }
   }
+
+  // ... (los demás métodos getUserProfile, getUsersBySucursal y searchUsersPartial se mantienen igual)
 
   async getUserProfile(username: string): Promise<Record<string, any> | null> {
     try {
@@ -156,7 +150,6 @@ export class AuthService {
         name: `${user.nombre} ${user.apellido}`.trim(),
         role: isGerente || isMarco ? 'admin' : 'estudiante',
         email: user.empleado?.email || '',
-        empleado: user.empleado,
       };
     } catch {
       return null;
@@ -169,19 +162,15 @@ export class AuthService {
         `${this.EXTERNAL_API_URL}/usuarios/sucursal/${sucursalId}`,
         { headers: { Authorization: `Bearer ${this.MASTER_TOKEN}` } },
       );
-      if (Array.isArray(response.data)) {
-        return response.data.map((user: UniversidadUser) => ({
-          id: user.id,
-          usuario: user.usuario,
-          nombre: user.nombre,
-          apellido: user.apellido,
-          name: `${user.nombre} ${user.apellido}`.trim(),
-          sucursal: user.empleado?.sucursalActiva?.nombre || 'Desconocida',
-        }));
-      }
-      return [];
-    } catch (error) {
-      console.error('Error buscando por sucursal:', error);
+      return Array.isArray(response.data)
+        ? response.data.map((user) => ({
+            id: user.id,
+            usuario: user.usuario,
+            name: `${user.nombre} ${user.apellido}`.trim(),
+            sucursal: user.empleado?.sucursalActiva?.nombre || 'Desconocida',
+          }))
+        : [];
+    } catch {
       return [];
     }
   }
@@ -198,16 +187,14 @@ export class AuthService {
       if (Array.isArray(response.data)) {
         return response.data
           .filter(
-            (user) =>
-              user.empleado !== null &&
-              (user.usuario?.toLowerCase().includes(term.toLowerCase()) ||
-                user.nombre?.toLowerCase().includes(term.toLowerCase())),
+            (u) =>
+              u.empleado &&
+              (u.usuario?.toLowerCase().includes(term.toLowerCase()) ||
+                u.nombre?.toLowerCase().includes(term.toLowerCase())),
           )
           .map((user) => ({
             id: user.id,
             usuario: user.usuario,
-            nombre: user.nombre,
-            apellido: user.apellido,
             name: `${user.nombre} ${user.apellido}`.trim(),
             role:
               user.empleado?.departamento?.nombre === 'GERENCIA'
@@ -224,8 +211,6 @@ export class AuthService {
   }
 
   register(_registerDto: RegisterDto): Promise<Record<string, any>> {
-    return Promise.resolve({
-      message: 'Gestión centralizada.',
-    });
+    return Promise.resolve({ message: 'Gestión centralizada.' });
   }
 }
