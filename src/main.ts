@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { INestApplication } from '@nestjs/common';
 import * as express from 'express'; // Asegúrate de tener esta importación al inicio
+import cookieParser from 'cookie-parser';
 
 // Variable para cachear la instancia en Serverless
 let app: INestApplication;
@@ -19,18 +20,15 @@ function setupApp(instance: INestApplication): void {
   expressInstance.use(express.json({ limit: '50mb' }));
   expressInstance.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  instance.use(cookieParser());
   instance.setGlobalPrefix('v1');
 
   instance.enableCors({
-    origin: (
-      origin: string | undefined,
-      callback: (err: Error | null, allow?: boolean) => void,
-    ) => {
+    origin: (origin, callback) => {
       const allowedOrigins = [
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
       ];
-      // Permitimos local, dominios específicos y subdominios de vercel
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
