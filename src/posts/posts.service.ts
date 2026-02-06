@@ -24,13 +24,12 @@ export class PostsService {
         throw new NotFoundException('Usuario no encontrado');
       }
 
-      // Creamos el objeto de forma explícita para evitar que TypeORM
-      // herede campos extraños que no existen en la tabla 'posts'
+      // Creamos el post asignando propiedades explícitamente
       const newPost = new Post();
       newPost.content = content || '';
       newPost.user = user;
-      newPost.likedBy = [];
       newPost.likesCount = 0;
+      newPost.likedBy = [];
       newPost.timestamp = new Date();
 
       if (file) {
@@ -42,11 +41,11 @@ export class PostsService {
           : 'file';
       }
 
-      // Guardamos usando save del repositorio
+      // Guardamos el objeto limpio
       const savedPost = await this.postRepo.save(newPost);
       return this.formatPost(savedPost);
     } catch (error) {
-      this.logger.error(`Error creando post en Vercel: ${error.message}`);
+      console.error(`Error en Vercel Posts: ${error.message}`);
       throw error;
     }
   }
