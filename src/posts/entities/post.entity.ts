@@ -25,7 +25,11 @@ export class Post {
   @Column({ nullable: true })
   mediaName?: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    name: 'timestamp',
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   timestamp: Date;
 
   @Column('int', { default: 0 })

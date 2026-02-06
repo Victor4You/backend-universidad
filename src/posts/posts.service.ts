@@ -20,32 +20,32 @@ export class PostsService {
       const parsedId = Number(userId);
       const user = await this.userRepo.findOneBy({ id: parsedId as any });
 
-      if (!user) {
-        throw new NotFoundException('Usuario no encontrado');
-      }
+      if (!user) throw new NotFoundException('Usuario no encontrado');
 
-      // Creamos el post asignando propiedades explícitamente
-      const newPost = new Post();
-      newPost.content = content || '';
-      newPost.user = user;
-      newPost.likesCount = 0;
-      newPost.likedBy = [];
-      newPost.timestamp = new Date();
+      // Creamos el objeto con datos base
+      const postData: Partial<Post> = {
+        content: content || '',
+        user: user,
+        likesCount: 0,
+        likedBy: [],
+        timestamp: new Date(),
+      };
 
       if (file) {
         const base64Data = file.buffer.toString('base64');
-        newPost.mediaUrl = `data:${file.mimetype};base64,${base64Data}`;
-        newPost.mediaName = file.originalname;
-        newPost.mediaType = file.mimetype.startsWith('image/')
+        postData.mediaUrl = `data:${file.mimetype};base64,${base64Data}`;
+        postData.mediaName = file.originalname;
+        postData.mediaType = file.mimetype.startsWith('image/')
           ? 'image'
           : 'file';
       }
 
-      // Guardamos el objeto limpio
+      const newPost = this.postRepo.create(postData);
       const savedPost = await this.postRepo.save(newPost);
+
       return this.formatPost(savedPost);
     } catch (error) {
-      console.error(`Error en Vercel Posts: ${error.message}`);
+      this.logger.error(`Error crítico en Posts: ${error.message}`);
       throw error;
     }
   }
