@@ -46,7 +46,8 @@ export class AuthService {
     // =========================================================
     // MODIFICACIÓN: PEGA TU URL DE NGROK AQUÍ
     // Ejemplo: 'https://a1b2-c3d4.ngrok-free.dev/v1'
-    const miNgrokActual = 'PON_AQUI_TU_URL_DE_NGROK/v1';
+    const miNgrokActual =
+      'https://uneuphoniously-enteral-shelia.ngrok-free.dev/v1';
     // =========================================================
 
     this.EXTERNAL_API_URL = miNgrokActual;
