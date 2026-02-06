@@ -22,7 +22,6 @@ import { Comment } from './posts/entities/comment.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
