@@ -6,7 +6,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { User } from '../../users/user.entity';
-import { Comment } from './comment.entity'; // Asegúrate de que el nombre del archivo sea exacto
+import { Comment } from './comment.entity';
 
 @Entity('posts')
 export class Post {
@@ -38,9 +38,21 @@ export class Post {
   @Column('text', { array: true, default: '{}' })
   likedBy: string[];
 
+  @Column('int', { default: 0 })
+  sharesCount: number;
+
+  @Column({ default: false })
+  isPoll: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  pollQuestion: string;
+
+  @Column({ type: 'jsonb', default: [] })
+  pollOptions: { option: string; votes: number; vitedBy: string[] }[];
+
   @ManyToOne(() => User, (user) => user.id)
   user: User;
 
-  @OneToMany(() => Comment, (comment: Comment) => comment.post) // Tipado explícito
+  @OneToMany(() => Comment, (comment: Comment) => comment.post)
   comments: Comment[];
 }

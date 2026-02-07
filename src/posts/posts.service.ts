@@ -15,20 +15,31 @@ export class PostsService {
     @InjectRepository(User) private userRepo: Repository<User>,
   ) {}
 
-  async create(content: string, userId: string, file?: Express.Multer.File) {
+  async create(
+    content: string,
+    userId: string,
+    file?: Express.Multer.File,
+    pollData?: any,
+  ) {
     try {
-      const parsedId = Number(userId);
-      const user = await this.userRepo.findOneBy({ id: parsedId as any });
-
+      const user = await this.userRepo.findOneBy({ id: Number(userId) as any });
       if (!user) throw new NotFoundException('Usuario no encontrado');
 
-      // Creamos el objeto con datos base
       const postData: Partial<Post> = {
         content: content || '',
         user: user,
         likesCount: 0,
         likedBy: [],
         timestamp: new Date(),
+        isPoll: !!pollData,
+        pollQuestion: pollData?.question || null,
+        pollOptions: pollData?.options
+          ? pollData.options.map((opt: string) => ({
+              option: opt,
+              votes: 0,
+              vitedBy: [],
+            }))
+          : [],
       };
 
       if (file) {
@@ -42,28 +53,28 @@ export class PostsService {
 
       const newPost = this.postRepo.create(postData);
       const savedPost = await this.postRepo.save(newPost);
-
       return this.formatPost(savedPost);
     } catch (error) {
-      this.logger.error(`Error crítico en Posts: ${error.message}`);
+      this.logger.error(`Error creando post: ${error.message}`);
       throw error;
     }
   }
 
-  async findAll() {
+  // ÚNICA IMPLEMENTACIÓN DE findAll
+  async findAll(currentUserId?: string) {
     try {
       const posts = await this.postRepo.find({
         relations: ['user', 'comments', 'comments.user'],
         order: { timestamp: 'DESC' },
       });
-      return posts.map((post) => this.formatPost(post));
+      return posts.map((post) => this.formatPost(post, currentUserId));
     } catch (error) {
       this.logger.error(`Error buscando posts: ${error.message}`);
       return [];
     }
   }
 
-  private formatPost(post: Post) {
+  private formatPost(post: Post, currentUserId?: string) {
     return {
       id: post.id.toString(),
       content: post.content,
@@ -71,7 +82,16 @@ export class PostsService {
         ? post.timestamp.toISOString()
         : new Date().toISOString(),
       likes: post.likesCount || 0,
-      liked: false,
+      // Blindaje de tipos: comprobamos que existan ambos antes de usar includes
+      liked:
+        post.likedBy && currentUserId
+          ? post.likedBy.includes(currentUserId)
+          : false,
+      shares: post.sharesCount || 0,
+      isPoll: post.isPoll || false,
+      pollData: post.isPoll
+        ? { question: post.pollQuestion, options: post.pollOptions }
+        : null,
       user: {
         id: post.user?.id?.toString(),
         name: post.user?.name || 'Usuario desconocido',
@@ -79,28 +99,22 @@ export class PostsService {
         avatar: post.user?.avatar || null,
       },
       media: post.mediaUrl
-        ? {
-            type: post.mediaType,
-            url: post.mediaUrl,
-            name: post.mediaName,
-          }
+        ? { type: post.mediaType, url: post.mediaUrl, name: post.mediaName }
         : null,
       comments: post.comments || [],
-      shares: 0,
-      shared: false,
     };
   }
 
   async toggleLike(postId: string, userId: string) {
-    const post = await this.postRepo.findOneBy({ id: Number(postId) as any });
+    const post = await this.postRepo.findOneBy({ id: postId });
     if (!post) throw new NotFoundException('Post no encontrado');
 
-    // Inicializamos likedBy si llega como null desde la DB
     if (!post.likedBy) post.likedBy = [];
+    const uId = userId.toString();
+    const index = post.likedBy.indexOf(uId);
 
-    const index = post.likedBy.indexOf(userId);
     if (index === -1) {
-      post.likedBy.push(userId);
+      post.likedBy.push(uId);
       post.likesCount = (post.likesCount || 0) + 1;
     } else {
       post.likedBy.splice(index, 1);
@@ -108,24 +122,52 @@ export class PostsService {
     }
 
     const saved = await this.postRepo.save(post);
-    return this.formatPost(saved);
+    return this.formatPost(saved, uId);
   }
 
   async addComment(postId: string, userId: string, content: string) {
-    const post = await this.postRepo.findOneBy({ id: Number(postId) as any });
+    const post = await this.postRepo.findOneBy({ id: postId });
     const user = await this.userRepo.findOneBy({ id: Number(userId) as any });
 
-    if (!post || !user) {
+    if (!post || !user)
       throw new NotFoundException('Post o Usuario no encontrado');
-    }
 
     const comment = this.commentRepo.create({
       content,
-      post: post,
-      user: user,
+      post,
+      user,
+      timestamp: new Date(),
     });
 
     await this.commentRepo.save(comment);
-    return this.findAll();
+    return this.findAll(userId); // Pasamos el userId para mantener consistencia
+  }
+
+  async toggleShare(postId: string) {
+    const post = await this.postRepo.findOneBy({ id: postId });
+    if (!post) throw new NotFoundException('Post no encontrado');
+    post.sharesCount = (post.sharesCount || 0) + 1;
+    const saved = await this.postRepo.save(post);
+    return this.formatPost(saved);
+  }
+
+  async votePoll(postId: string, optionIndex: number, userId: string) {
+    const post = await this.postRepo.findOneBy({ id: postId });
+    if (!post || !post.isPoll)
+      throw new NotFoundException('Encuesta no encontrada');
+
+    if (!post.pollOptions[optionIndex].vitedBy)
+      post.pollOptions[optionIndex].vitedBy = [];
+
+    const alreadyVoted = post.pollOptions.some((opt) =>
+      opt.vitedBy?.includes(userId),
+    );
+    if (alreadyVoted) return this.formatPost(post, userId);
+
+    post.pollOptions[optionIndex].votes += 1;
+    post.pollOptions[optionIndex].vitedBy.push(userId);
+
+    const saved = await this.postRepo.save(post);
+    return this.formatPost(saved, userId);
   }
 }

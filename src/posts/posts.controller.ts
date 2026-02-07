@@ -20,15 +20,13 @@ export class PostsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  // CAMBIO: Usamos 'image' porque es lo que envía tu Feed.tsx en el FormData
   @UseInterceptors(FileInterceptor('image'))
   async create(
     @Body('content') content: string,
+    @Body('pollData') pollData: string, // Viene como string JSON desde el FormData
     @Req() req: any,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    // CAMBIO: Tu estrategia JWT ahora devuelve 'id'.
-    // Usamos ambos por si acaso para máxima compatibilidad.
     const userId = req.user?.id || req.user?.sub;
 
     if (!userId) {
@@ -37,13 +35,19 @@ export class PostsController {
       );
     }
 
-    // Mantenemos tu llamada al servicio idéntica
-    return await this.postsService.create(content, String(userId), file);
+    // Parseamos la encuesta si existe
+    const parsedPollData = pollData ? JSON.parse(pollData) : null;
+
+    return await this.postsService.create(
+      content,
+      String(userId),
+      file,
+      parsedPollData,
+    );
   }
 
   @Get()
   async findAll() {
-    // El servicio ahora retorna los posts formateados para el frontend
     return await this.postsService.findAll();
   }
 
@@ -67,5 +71,28 @@ export class PostsController {
     if (!userId) throw new UnauthorizedException();
 
     return await this.postsService.addComment(postId, String(userId), content);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/share')
+  async sharePost(@Param('id') postId: string) {
+    return await this.postsService.toggleShare(postId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/vote')
+  async votePoll(
+    @Param('id') postId: string,
+    @Body('optionIndex') optionIndex: number,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id || req.user?.sub;
+    if (!userId) throw new UnauthorizedException();
+
+    return await this.postsService.votePoll(
+      postId,
+      optionIndex,
+      String(userId),
+    );
   }
 }

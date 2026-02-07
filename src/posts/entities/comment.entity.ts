@@ -16,7 +16,8 @@ export class Comment {
   @Column({ type: 'text' })
   content: string;
 
-  @CreateDateColumn()
+  // Esta columna es la que causa el error 500 si no existe en tu Postgres local
+  @CreateDateColumn({ name: 'timestamp' })
   timestamp: Date;
 
   @ManyToOne(() => User, (user) => user.id)
