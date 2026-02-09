@@ -40,11 +40,13 @@ import { Comment } from './posts/entities/comment.entity';
       ],
       synchronize: process.env.NODE_ENV !== 'production',
 
-      // USAMOS !! PARA ASEGURAR UN VALOR BOOLEANO (Corrige el error de compilación)
+      // Forzamos a que sea booleano con !!
       ssl: !!(
         process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
       ),
+
       extra: {
+        // Aquí también usamos !! para el valor booleano
         ssl: !!(
           process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
         )
