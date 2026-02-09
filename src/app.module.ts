@@ -45,9 +45,10 @@ import { Comment } from './posts/entities/comment.entity';
       extra:
         process.env.DB_SSL === 'true' || !!process.env.VERCEL
           ? {
-              ssl: {
-                rejectUnauthorized: false,
-              },
+              ssl: { rejectUnauthorized: false },
+              // Añade esto para manejar mejor las conexiones serverless de Neon
+              connectionTimeoutMillis: 10000,
+              query_timeout: 10000,
             }
           : {},
     }),
