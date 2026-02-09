@@ -30,7 +30,6 @@ import { Comment } from './posts/entities/comment.entity';
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      // Registro de todas las entidades para que TypeORM cree las tablas
       entities: [
         User,
         Course,
@@ -39,15 +38,19 @@ import { Comment } from './posts/entities/comment.entity';
         Post,
         Comment,
       ],
-      // Sincronización automática para desarrollo (Vercel/Local)
       synchronize: process.env.NODE_ENV !== 'production',
-      ssl:
-        process.env.NODE_ENV === 'production'
-          ? { rejectUnauthorized: false }
-          : false,
+
+      // CONFIGURACIÓN CRÍTICA PARA NEON + VERCEL
+      ssl: process.env.DB_SSL === 'true' || !!process.env.VERCEL,
+      extra:
+        process.env.DB_SSL === 'true' || !!process.env.VERCEL
+          ? {
+              ssl: {
+                rejectUnauthorized: false,
+              },
+            }
+          : {},
     }),
-    // forFeature permite que los servicios globales (como ReportsService)
-    // puedan inyectar estos repositorios si fuera necesario
     TypeOrmModule.forFeature([
       User,
       Course,

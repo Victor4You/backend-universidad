@@ -63,45 +63,77 @@ export class PostsService {
   // ÚNICA IMPLEMENTACIÓN DE findAll
   async findAll(currentUserId?: string) {
     try {
+      // Agregamos un log para debuggear en Vercel
+      this.logger.log(`Buscando posts para el usuario: ${currentUserId}`);
+
       const posts = await this.postRepo.find({
-        relations: ['user', 'comments', 'comments.user'],
+        // Aseguramos que las relaciones se carguen explícitamente
+        relations: {
+          user: true,
+          comments: {
+            user: true,
+          },
+        },
         order: { timestamp: 'DESC' },
+        // En Vercel es mejor limitar un poco si tienes muchos posts para evitar timeouts
+        take: 50,
       });
+
+      if (!posts) return [];
+
       return posts.map((post) => this.formatPost(post, currentUserId));
     } catch (error) {
-      this.logger.error(`Error buscando posts: ${error.message}`);
-      return [];
+      this.logger.error(`Error buscando posts en Neon: ${error.message}`);
+      // IMPORTANTE: No devuelvas [] si es un error de conexión,
+      // lanza el error para que el frontend sepa que debe reintentar
+      throw new Error(
+        `Error de conexión con la base de datos: ${error.message}`,
+      );
     }
   }
 
   private formatPost(post: Post, currentUserId?: string) {
+    // Aseguramos que likedBy sea siempre un array para evitar fallos en .includes
+    const likedByArray = Array.isArray(post.likedBy) ? post.likedBy : [];
+    const uId = currentUserId?.toString();
+
     return {
       id: post.id.toString(),
       content: post.content || '',
-      timestamp: post.timestamp
-        ? post.timestamp.toISOString()
-        : new Date().toISOString(),
+      timestamp:
+        post.timestamp instanceof Date
+          ? post.timestamp.toISOString()
+          : new Date(post.timestamp).toISOString(),
       likes: Number(post.likesCount) || 0,
-      liked:
-        post.likedBy && currentUserId
-          ? post.likedBy.includes(currentUserId.toString())
-          : false,
+      liked: uId ? likedByArray.includes(uId) : false,
       shares: Number(post.sharesCount) || 0,
       isPoll: !!post.isPoll,
       pollData: post.isPoll
-        ? { question: post.pollQuestion, options: post.pollOptions }
+        ? {
+            question: post.pollQuestion,
+            options: Array.isArray(post.pollOptions) ? post.pollOptions : [],
+          }
         : null,
       user: {
-        // Si post.user es null (puede pasar en Neon si la relación falla), evitamos el crash
         id: post.user?.id?.toString() || '0',
         name: post.user?.name || 'Usuario del Sistema',
-        role: post.user?.role || 'user',
+        role: post.user?.role || 'estudiante',
         avatar: post.user?.avatar || null,
       },
       media: post.mediaUrl
         ? { type: post.mediaType, url: post.mediaUrl, name: post.mediaName }
         : null,
-      comments: post.comments || [],
+      comments: Array.isArray(post.comments)
+        ? post.comments.map((c) => ({
+            ...c,
+            id: c.id.toString(),
+            user: {
+              id: c.user?.id?.toString() || '0',
+              name: c.user?.name || 'Usuario',
+              avatar: c.user?.avatar || null,
+            },
+          }))
+        : [],
     };
   }
 
