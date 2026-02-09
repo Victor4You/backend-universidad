@@ -28,7 +28,6 @@ import { Comment } from './posts/entities/comment.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        // Detecta si está en Vercel
         const isProduction = config.get('NODE_ENV') === 'production';
 
         return {
@@ -46,15 +45,16 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: !isProduction,
+          synchronize: false, // OBLIGATORIO: false en Vercel
 
-          // CONFIGURACIÓN PARA NEON (Vercel)
+          // CONFIGURACIÓN AGRESIVA PARA SERVERLESS
           ssl: isProduction ? { rejectUnauthorized: false } : false,
           extra: isProduction
             ? {
                 ssl: { rejectUnauthorized: false },
-                connectionTimeoutMillis: 10000,
-                idleTimeoutMillis: 30000,
+                connectionTimeoutMillis: 5000, // Bajamos a 5 segundos para que no se quede colgado
+                idleTimeoutMillis: 10000, // Cerramos conexiones inactivas rápido
+                max: 1, // IMPORTANTE: En Serverless, 1 conexión por instancia es mejor
               }
             : {},
         };
