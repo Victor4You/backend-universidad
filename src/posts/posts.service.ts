@@ -77,24 +77,24 @@ export class PostsService {
   private formatPost(post: Post, currentUserId?: string) {
     return {
       id: post.id.toString(),
-      content: post.content,
+      content: post.content || '',
       timestamp: post.timestamp
         ? post.timestamp.toISOString()
         : new Date().toISOString(),
-      likes: post.likesCount || 0,
-      // Blindaje de tipos: comprobamos que existan ambos antes de usar includes
+      likes: Number(post.likesCount) || 0,
       liked:
         post.likedBy && currentUserId
-          ? post.likedBy.includes(currentUserId)
+          ? post.likedBy.includes(currentUserId.toString())
           : false,
-      shares: post.sharesCount || 0,
-      isPoll: post.isPoll || false,
+      shares: Number(post.sharesCount) || 0,
+      isPoll: !!post.isPoll,
       pollData: post.isPoll
         ? { question: post.pollQuestion, options: post.pollOptions }
         : null,
       user: {
-        id: post.user?.id?.toString(),
-        name: post.user?.name || 'Usuario desconocido',
+        // Si post.user es null (puede pasar en Neon si la relación falla), evitamos el crash
+        id: post.user?.id?.toString() || '0',
+        name: post.user?.name || 'Usuario del Sistema',
         role: post.user?.role || 'user',
         avatar: post.user?.avatar || null,
       },
