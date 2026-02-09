@@ -29,7 +29,6 @@ import { Comment } from './posts/entities/comment.entity';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const isProduction = config.get('NODE_ENV') === 'production';
-        // En local suele ser false, en Vercel/Neon DEBE ser true
         const shouldSSl = isProduction || config.get('DB_SSL') === 'true';
 
         return {
@@ -47,18 +46,16 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: !isProduction, // True solo en local para desarrollo fluido
+          synchronize: false, // OBLIGATORIO: false en Vercel
 
-          // CONFIGURACIÓN DINÁMICA
+          // CONFIGURACIÓN DE CONEXIÓN
           ssl: shouldSSl ? { rejectUnauthorized: false } : false,
           extra: shouldSSl
             ? {
-                ssl: {
-                  rejectUnauthorized: false,
-                },
+                ssl: { rejectUnauthorized: false },
                 connectionTimeoutMillis: 10000,
                 idleTimeoutMillis: 30000,
-                max: 1,
+                max: 1, // Limita a 1 conexión para no saturar Neon desde Vercel
               }
             : {},
         };
