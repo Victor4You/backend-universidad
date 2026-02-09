@@ -27,37 +27,37 @@ import { Comment } from './posts/entities/comment.entity';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('DB_HOST'),
-        port: configService.get<number>('DB_PORT', 5432),
-        username: configService.get<string>('DB_USER'),
-        password: configService.get<string>('DB_PASSWORD'),
-        database: configService.get<string>('DB_NAME'),
-        entities: [
-          User,
-          Course,
-          CourseCompletion,
-          CourseEnrollment,
-          Post,
-          Comment,
-        ],
-        synchronize: configService.get<string>('NODE_ENV') !== 'production',
+      useFactory: (config: ConfigService) => {
+        const isProduction = config.get('NODE_ENV') === 'production';
+        // Forzamos SSL si estamos en producción (Vercel)
+        const useSSL = isProduction || config.get('DB_SSL') === 'true';
 
-        // CONFIGURACIÓN ROBUSTA DE SSL
-        ssl:
-          configService.get<string>('DB_SSL') === 'true'
-            ? { rejectUnauthorized: false }
-            : false,
-        extra:
-          configService.get<string>('DB_SSL') === 'true'
+        return {
+          type: 'postgres',
+          host: config.get<string>('DB_HOST'),
+          port: config.get<number>('DB_PORT', 5432),
+          username: config.get<string>('DB_USER'),
+          password: config.get<string>('DB_PASSWORD'),
+          database: config.get<string>('DB_NAME'),
+          entities: [
+            User,
+            Course,
+            CourseCompletion,
+            CourseEnrollment,
+            Post,
+            Comment,
+          ],
+          synchronize: !isProduction, // Falso en Vercel para evitar bloqueos
+          ssl: useSSL ? { rejectUnauthorized: false } : false,
+          extra: useSSL
             ? {
                 ssl: { rejectUnauthorized: false },
                 connectionTimeoutMillis: 10000,
                 idleTimeoutMillis: 30000,
               }
             : {},
-      }),
+        };
+      },
     }),
     TypeOrmModule.forFeature([
       User,
