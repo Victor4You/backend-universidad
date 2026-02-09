@@ -22,13 +22,15 @@ import { Comment } from './posts/entities/comment.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env', // Forzamos a buscar el archivo
+      envFilePath: '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const isProduction = config.get('NODE_ENV') === 'production';
+        // En local suele ser false, en Vercel/Neon DEBE ser true
+        const shouldSSl = isProduction || config.get('DB_SSL') === 'true';
 
         return {
           type: 'postgres',
@@ -45,16 +47,18 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: false, // OBLIGATORIO: false en Vercel
+          synchronize: !isProduction, // True solo en local para desarrollo fluido
 
-          // CONFIGURACIÓN AGRESIVA PARA SERVERLESS
-          ssl: isProduction ? { rejectUnauthorized: false } : false,
-          extra: isProduction
+          // CONFIGURACIÓN DINÁMICA
+          ssl: shouldSSl ? { rejectUnauthorized: false } : false,
+          extra: shouldSSl
             ? {
-                ssl: { rejectUnauthorized: false },
-                connectionTimeoutMillis: 5000, // Bajamos a 5 segundos para que no se quede colgado
-                idleTimeoutMillis: 10000, // Cerramos conexiones inactivas rápido
-                max: 1, // IMPORTANTE: En Serverless, 1 conexión por instancia es mejor
+                ssl: {
+                  rejectUnauthorized: false,
+                },
+                connectionTimeoutMillis: 10000,
+                idleTimeoutMillis: 30000,
+                max: 1,
               }
             : {},
         };
