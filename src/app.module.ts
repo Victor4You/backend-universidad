@@ -28,10 +28,8 @@ import { Comment } from './posts/entities/comment.entity';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
+        // Detecta si está en Vercel
         const isProduction = config.get('NODE_ENV') === 'production';
-
-        // Solo activamos SSL si estamos en producción (Vercel)
-        const useSSL = isProduction;
 
         return {
           type: 'postgres',
@@ -48,11 +46,11 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: !isProduction, // True en local, False en Vercel
+          synchronize: !isProduction,
 
-          // CONFIGURACIÓN DINÁMICA
-          ssl: useSSL ? { rejectUnauthorized: false } : false,
-          extra: useSSL
+          // CONFIGURACIÓN PARA NEON (Vercel)
+          ssl: isProduction ? { rejectUnauthorized: false } : false,
+          extra: isProduction
             ? {
                 ssl: { rejectUnauthorized: false },
                 connectionTimeoutMillis: 10000,
