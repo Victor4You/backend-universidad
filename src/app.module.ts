@@ -38,23 +38,23 @@ import { Comment } from './posts/entities/comment.entity';
         Post,
         Comment,
       ],
+      // Solo sincroniza si no es producción
       synchronize: process.env.NODE_ENV !== 'production',
 
-      // Forzamos a que sea booleano con !!
-      ssl: !!(
-        process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
-      ),
+      // CONFIGURACIÓN INTELIGENTE LOCAL VS VERCEL
+      ssl: process.env.DB_HOST?.includes('neon.tech')
+        ? { rejectUnauthorized: false }
+        : false,
 
-      extra: {
-        // Aquí también usamos !! para el valor booleano
-        ssl: !!(
-          process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
-        )
-          ? { rejectUnauthorized: false }
-          : false,
-        connectionTimeoutMillis: 10000,
-        query_timeout: 10000,
-      },
+      extra: process.env.DB_HOST?.includes('neon.tech')
+        ? {
+            ssl: {
+              rejectUnauthorized: false,
+            },
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000,
+          }
+        : {},
     }),
     TypeOrmModule.forFeature([
       User,
