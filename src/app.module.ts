@@ -46,7 +46,7 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: true, // OBLIGATORIO: false en Vercel
+          synchronize: !isProduction, // OBLIGATORIO: false en Vercel
 
           // CONFIGURACIÓN DE CONEXIÓN
           ssl: shouldSSl ? { rejectUnauthorized: false } : false,
