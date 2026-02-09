@@ -67,4 +67,3 @@ import { Comment } from './posts/entities/comment.entity';
   providers: [ReportsService],
 })
 export class AppModule {}
-
