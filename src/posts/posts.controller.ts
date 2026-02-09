@@ -46,14 +46,12 @@ export class PostsController {
     );
   }
 
-  @UseGuards(JwtAuthGuard) // <--- ¡AÑADE ESTO!
+  @UseGuards(JwtAuthGuard)
   @Get()
   async findAll(@Req() req: any) {
     // Extraemos el ID del token inyectado por el Guard
     const userId = req.user?.id || req.user?.sub;
-
-    // Pasamos el ID al servicio para que sepa qué posts tienen "like"
-    return await this.postsService.findAll(userId ? String(userId) : undefined);
+    return await this.postsService.findAll(String(userId));
   }
 
   @UseGuards(JwtAuthGuard)
