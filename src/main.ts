@@ -16,19 +16,20 @@ function setupApp(instance: INestApplication): void {
     .getHttpAdapter()
     .getInstance() as express.Application;
 
-  // Ajuste de límite para soportar imágenes de cámaras modernas
   expressInstance.use(express.json({ limit: '50mb' }));
   expressInstance.use(express.urlencoded({ limit: '50mb', extended: true }));
 
   instance.use(cookieParser());
   instance.setGlobalPrefix('v1');
 
+  // AJUSTE DE CORS PARA VERCEL
   instance.enableCors({
     origin: (origin, callback) => {
       const allowedOrigins = [
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
       ];
+      // Permitimos explícitamente cualquier subdominio de vercel.app
       if (
         !origin ||
         allowedOrigins.includes(origin) ||
@@ -36,7 +37,7 @@ function setupApp(instance: INestApplication): void {
       ) {
         callback(null, true);
       } else {
-        callback(new Error('No permitido por CORS'));
+        callback(null, false); // No lances error, solo retorna falso
       }
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -44,10 +45,10 @@ function setupApp(instance: INestApplication): void {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'X-Requested-With',
       'Accept',
+      'X-Requested-With',
     ],
-    optionsSuccessStatus: 204,
+    exposedHeaders: ['Set-Cookie'], // IMPORTANTE: Para que el navegador vea las cookies en Vercel
   });
 }
 
