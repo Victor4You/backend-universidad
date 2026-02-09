@@ -38,23 +38,18 @@ import { Comment } from './posts/entities/comment.entity';
         Post,
         Comment,
       ],
-      // Solo sincroniza si no es producción
-      synchronize: process.env.NODE_ENV !== 'production',
+      synchronize: false, // OBLIGATORIO en producción
 
-      // CONFIGURACIÓN INTELIGENTE LOCAL VS VERCEL
-      ssl: process.env.DB_HOST?.includes('neon.tech')
-        ? { rejectUnauthorized: false }
-        : false,
-
-      extra: process.env.DB_HOST?.includes('neon.tech')
-        ? {
-            ssl: {
-              rejectUnauthorized: false,
-            },
-            connectionTimeoutMillis: 10000,
-            idleTimeoutMillis: 30000,
-          }
-        : {},
+      // Forzamos SSL de esta manera para que Neon no nos rebote
+      ssl: true,
+      extra: {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+        // Parámetros para que la conexión no se muera al recargar
+        connectionTimeoutMillis: 10000,
+        idleTimeoutMillis: 30000,
+      },
     }),
     TypeOrmModule.forFeature([
       User,
