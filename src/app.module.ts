@@ -29,8 +29,9 @@ import { Comment } from './posts/entities/comment.entity';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const isProduction = config.get('NODE_ENV') === 'production';
-        // Forzamos SSL si estamos en producción (Vercel)
-        const useSSL = isProduction || config.get('DB_SSL') === 'true';
+
+        // Solo activamos SSL si estamos en producción (Vercel)
+        const useSSL = isProduction;
 
         return {
           type: 'postgres',
@@ -47,7 +48,9 @@ import { Comment } from './posts/entities/comment.entity';
             Post,
             Comment,
           ],
-          synchronize: !isProduction, // Falso en Vercel para evitar bloqueos
+          synchronize: !isProduction, // True en local, False en Vercel
+
+          // CONFIGURACIÓN DINÁMICA
           ssl: useSSL ? { rejectUnauthorized: false } : false,
           extra: useSSL
             ? {
