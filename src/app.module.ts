@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module'; // Importa el nuevo módulo
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { UsersController } from './users/users.controller';
@@ -22,34 +22,42 @@ import { Comment } from './posts/entities/comment.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env', // Forzamos a buscar el archivo
     }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      entities: [
-        User,
-        Course,
-        CourseCompletion,
-        CourseEnrollment,
-        Post,
-        Comment,
-      ],
-      synchronize: false, // OBLIGATORIO en producción
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get<string>('DB_HOST'),
+        port: configService.get<number>('DB_PORT', 5432),
+        username: configService.get<string>('DB_USER'),
+        password: configService.get<string>('DB_PASSWORD'),
+        database: configService.get<string>('DB_NAME'),
+        entities: [
+          User,
+          Course,
+          CourseCompletion,
+          CourseEnrollment,
+          Post,
+          Comment,
+        ],
+        synchronize: configService.get<string>('NODE_ENV') !== 'production',
 
-      // Forzamos SSL de esta manera para que Neon no nos rebote
-      ssl: true,
-      extra: {
-        ssl: {
-          rejectUnauthorized: false,
-        },
-        // Parámetros para que la conexión no se muera al recargar
-        connectionTimeoutMillis: 10000,
-        idleTimeoutMillis: 30000,
-      },
+        // CONFIGURACIÓN ROBUSTA DE SSL
+        ssl:
+          configService.get<string>('DB_SSL') === 'true'
+            ? { rejectUnauthorized: false }
+            : false,
+        extra:
+          configService.get<string>('DB_SSL') === 'true'
+            ? {
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                idleTimeoutMillis: 30000,
+              }
+            : {},
+      }),
     }),
     TypeOrmModule.forFeature([
       User,
