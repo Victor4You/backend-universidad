@@ -40,17 +40,19 @@ import { Comment } from './posts/entities/comment.entity';
       ],
       synchronize: process.env.NODE_ENV !== 'production',
 
-      // CONFIGURACIÓN CRÍTICA PARA NEON + VERCEL
-      ssl: process.env.DB_SSL === 'true' || !!process.env.VERCEL,
-      extra:
-        process.env.DB_SSL === 'true' || !!process.env.VERCEL
-          ? {
-              ssl: { rejectUnauthorized: false },
-              // Añade esto para manejar mejor las conexiones serverless de Neon
-              connectionTimeoutMillis: 10000,
-              query_timeout: 10000,
-            }
-          : {},
+      // USAMOS !! PARA ASEGURAR UN VALOR BOOLEANO (Corrige el error de compilación)
+      ssl: !!(
+        process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
+      ),
+      extra: {
+        ssl: !!(
+          process.env.DB_HOST && !process.env.DB_HOST.includes('localhost')
+        )
+          ? { rejectUnauthorized: false }
+          : false,
+        connectionTimeoutMillis: 10000,
+        query_timeout: 10000,
+      },
     }),
     TypeOrmModule.forFeature([
       User,
