@@ -12,6 +12,7 @@ import { Course } from './courses/entities/course.entity';
 import { ReportsService } from './reports/reports.service';
 import { CourseCompletion } from './courses/entities/course-completion.entity';
 import { CourseEnrollment } from './courses/entities/course-enrollment.entity';
+import { CourseSection } from './courses/entities/course-section.entity';
 
 // Importaciones del módulo de Posts
 import { PostsModule } from './posts/posts.module';
@@ -41,6 +42,7 @@ import { Comment } from './posts/entities/comment.entity';
           entities: [
             User,
             Course,
+            CourseSection,
             CourseCompletion,
             CourseEnrollment,
             Post,

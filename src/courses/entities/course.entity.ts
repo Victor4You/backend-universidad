@@ -1,9 +1,10 @@
 import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
 import { CourseEnrollment } from './course-enrollment.entity';
+import { CourseSection } from './course-section.entity';
 
 @Entity('courses')
 export class Course {
-  @PrimaryGeneratedColumn() // o @PrimaryColumn() según tu diseño
+  @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
@@ -27,7 +28,9 @@ export class Course {
   @Column({ default: 'activo' })
   estado: string;
 
-  // Guardamos el contenido como JSON para no complicar la DB
+  @Column({ default: 'general' })
+  tipo: string;
+
   @Column({ type: 'jsonb', nullable: true })
   videos: any[];
 
@@ -42,4 +45,7 @@ export class Course {
 
   @OneToMany(() => CourseEnrollment, (enrollment) => enrollment.course)
   estudiantesInscritos: CourseEnrollment[];
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  secciones: any[];
 }
