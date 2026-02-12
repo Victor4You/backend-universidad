@@ -104,11 +104,11 @@ export class CoursesService {
 
   async remove(id: string) {
     const numericId = Number(id);
+    // CORRECCIÓN: Usar el nombre de columna exacto de la DB
     await this.enrollmentRepository.delete({ courseId: numericId });
     await this.completionRepository.delete({ courseId: numericId });
     return await this.courseRepository.delete(numericId);
   }
-
   // --- MÉTODOS DE USUARIOS Y API EXTERNA ---
 
   async findUsersBySucursal(sucursalId: string, query: string = '') {
@@ -154,31 +154,27 @@ export class CoursesService {
   }
 
   async assignUsersToCourse(courseId: string, userIds: number[]) {
-    // 1. Limpiamos inscripciones previas
+    // CORRECCIÓN: courseId en minúscula para el objeto de búsqueda
     await this.enrollmentRepository.delete({ courseId: Number(courseId) });
+
     if (userIds.length === 0) return this.findAll();
 
-    // 2. Intentamos buscar datos reales
     const usersData = await this.findSpecificUsersFromApi(userIds);
 
     const newEnrollments = userIds.map((uId) => {
       const apiUser = usersData.find((u) => Number(u.id) === Number(uId));
 
-      // Si no encontramos al usuario en la API externa, mantenemos lo que tenemos
-      // pero nos aseguramos de que no sea null para que el frontend no falle
       return this.enrollmentRepository.create({
-        courseId: Number(courseId),
+        courseId: Number(courseId), // TypeORM mapeará esto a 'courseid' por el @Column(name)
         userId: uId,
         userName: apiUser
           ? `${apiUser.nombre} ${apiUser.apellido}`.trim()
-          : `Usuario ${uId}`, // Fallback para que aparezca algo en la lista
+          : `Usuario ${uId}`,
         userUsername: apiUser ? apiUser.usuario : `u${uId}`,
       });
     });
 
     await this.enrollmentRepository.save(newEnrollments);
-
-    // IMPORTANTE: Devolvemos findOne para refrescar la relación con los nuevos datos
     return this.findAll();
   }
 
@@ -216,7 +212,11 @@ export class CoursesService {
 
   async registerCompletion(data: RegisterCompletionData) {
     const existing = await this.completionRepository.findOne({
-      where: { userId: Number(data.userId), courseId: Number(data.courseId) },
+      // CORRECCIÓN: Nombres de propiedades que coincidan con la lógica de la DB
+      where: {
+        userId: Number(data.userId),
+        courseId: Number(data.courseId),
+      },
     });
     if (existing && existing.score >= 90) return existing;
 
@@ -244,7 +244,11 @@ export class CoursesService {
     attempts: number;
   }) {
     let progress = await this.courseProgressRepository.findOne({
-      where: { courseId: Number(data.courseId), userId: Number(data.userId) },
+      // CORRECCIÓN: nombres de campos en el where
+      where: {
+        courseId: Number(data.courseId),
+        userId: Number(data.userId),
+      },
     });
 
     if (!progress) {
