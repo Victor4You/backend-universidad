@@ -154,26 +154,31 @@ export class CoursesService {
   }
 
   async assignUsersToCourse(courseId: string, userIds: number[]) {
-    // Limpiamos inscripciones previas
+    // 1. Limpiamos inscripciones previas
     await this.enrollmentRepository.delete({ courseId: Number(courseId) });
     if (userIds.length === 0) return this.findAll();
 
-    // Buscamos los datos reales de los usuarios para guardar nombre y username (desnormalizado para velocidad)
+    // 2. Intentamos buscar datos reales
     const usersData = await this.findSpecificUsersFromApi(userIds);
 
     const newEnrollments = userIds.map((uId) => {
       const apiUser = usersData.find((u) => Number(u.id) === Number(uId));
+
+      // Si no encontramos al usuario en la API externa, mantenemos lo que tenemos
+      // pero nos aseguramos de que no sea null para que el frontend no falle
       return this.enrollmentRepository.create({
         courseId: Number(courseId),
         userId: uId,
         userName: apiUser
           ? `${apiUser.nombre} ${apiUser.apellido}`.trim()
-          : `USUARIO ${uId}`,
-        userUsername: apiUser ? apiUser.usuario : 'S/N',
+          : `Usuario ${uId}`, // Fallback para que aparezca algo en la lista
+        userUsername: apiUser ? apiUser.usuario : `u${uId}`,
       });
     });
 
     await this.enrollmentRepository.save(newEnrollments);
+
+    // IMPORTANTE: Devolvemos findOne para refrescar la relación con los nuevos datos
     return this.findAll();
   }
 

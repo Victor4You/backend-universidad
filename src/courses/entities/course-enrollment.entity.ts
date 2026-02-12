@@ -14,28 +14,27 @@ export class CourseEnrollment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'integer' })
+  // Forzamos el nombre de la columna a minúsculas
+  @Column({ name: 'courseid', type: 'integer' }) // 'name' asegura que en la DB sea minúscula
   courseId: number;
 
-  @Column()
+  @Column({ name: 'userid' })
   userId: number;
 
-  @Column({ nullable: true })
+  @Column({ name: 'username', nullable: true })
   userName: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'userusername', nullable: true })
   userUsername: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'enrolledat' })
   enrolledAt: Date;
 
   @ManyToOne(() => Course, (course) => course.estudiantesInscritos)
-  @JoinColumn({ name: 'courseId' })
+  @JoinColumn({ name: 'courseid' }) // Debe coincidir con el name de arriba
   course: Course;
 
-  // ESTA ES LA SOLUCIÓN DEFINITIVA:
-  // createForeignKeyConstraint: false evita que el servidor falle al conectar
   @ManyToOne(() => User, { createForeignKeyConstraints: false })
-  @JoinColumn({ name: 'userId', referencedColumnName: 'id' })
+  @JoinColumn({ name: 'userid', referencedColumnName: 'id' }) // CLAVE: También en minúsculas
   user: User;
 }
