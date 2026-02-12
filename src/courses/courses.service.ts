@@ -6,6 +6,8 @@ import { CourseEnrollment } from './entities/course-enrollment.entity';
 import { Repository, In } from 'typeorm';
 import axios from 'axios';
 import { put } from '@vercel/blob';
+import { CourseProgress } from './entities/course-progress.entity';
+import { ConfigService } from '@nestjs/config';
 
 interface UniversidadUser {
   id: number;
@@ -24,8 +26,8 @@ interface APIResponse {
 }
 
 export class RegisterCompletionData {
-  userId: number; // Cambiado a number para consistencia
-  courseId: number; // Cambiado a number para consistencia
+  userId: number;
+  courseId: number;
   score: number;
   survey?: Record<string, number>;
 }
@@ -34,20 +36,44 @@ export class RegisterCompletionData {
 export class CoursesService {
   private readonly logger = new Logger(CoursesService.name);
 
+  // CONFIGURACIÓN DINÁMICA: Funciona en Local (127.0.0.1) y en Vercel via Env
   private readonly EXTERNAL_API_URL =
-    process.env.EXTERNAL_API_URL || 'http://192.168.13.170:3201/v1';
+    process.env.EXTERNAL_API_URL || 'http://127.0.0.1:3201/v1';
   private readonly MASTER_TOKEN =
     process.env.MASTER_TOKEN ||
     'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV';
 
   constructor(
-    @InjectRepository(Course)
-    private courseRepository: Repository<Course>,
+    private configService: ConfigService,
+    @InjectRepository(Course) private courseRepository: Repository<Course>,
     @InjectRepository(CourseCompletion)
     private completionRepository: Repository<CourseCompletion>,
     @InjectRepository(CourseEnrollment)
     private enrollmentRepository: Repository<CourseEnrollment>,
+    @InjectRepository(CourseProgress)
+    private courseProgressRepository: Repository<CourseProgress>,
   ) {}
+  private get externalApiUrl(): string {
+    const isVercel =
+      !!this.configService.get('VERCEL') ||
+      process.env.NODE_ENV === 'production';
+
+    if (isVercel) {
+      return this.configService.get<string>('EXTERNAL_API_URL') || '';
+    } else {
+      // Intentamos obtener la IP del .env.local, si no, usamos la que me acabas de dar
+      const envIp = this.configService.get<string>('EXTERNAL_API_URL_LOCAL');
+      return envIp || 'http://192.168.13.170:3201/v1';
+    }
+  }
+  private get masterToken(): string {
+    // Aseguramos string para evitar errores de tipo
+    return (
+      this.configService.get<string>('MASTER_TOKEN') ||
+      'Tyau4EiHXpVdp4bxwt4byTBg62h6fh3MHBlIc0gTeH5g13sXfBwOeX0vFcQXQcFV'
+    );
+  }
+  // --- MÉTODOS DE CURSOS ---
 
   async findAll() {
     const courses = await this.courseRepository.find({
@@ -59,14 +85,6 @@ export class CoursesService {
       ...course,
       estudiantes: course.estudiantesInscritos?.length || 0,
     }));
-  }
-
-  // CORREGIDO: Ahora retorna Promise<number[]> para coincidir con la entidad
-  async findProgress(userId: number): Promise<number[]> {
-    const completions = await this.completionRepository.find({
-      where: { userId },
-    });
-    return completions.map((c) => Number(c.courseId));
   }
 
   async create(data: Partial<Course>): Promise<Course> {
@@ -84,72 +102,70 @@ export class CoursesService {
     }
   }
 
-  // CORREGIDO: Tipado de comparaciones y creación
-  async registerCompletion(data: RegisterCompletionData) {
-    const existing = await this.completionRepository.findOne({
-      where: {
-        userId: Number(data.userId),
-        courseId: Number(data.courseId), // Convertido a Number
-      },
-    });
-
-    if (existing && existing.score >= 90) return existing;
-
-    const completion = this.completionRepository.create({
-      userId: Number(data.userId),
-      courseId: Number(data.courseId), // Convertido a Number
-      score: data.score,
-      survey: data.survey,
-    });
-    return await this.completionRepository.save(completion);
+  async remove(id: string) {
+    const numericId = Number(id);
+    await this.enrollmentRepository.delete({ courseId: numericId });
+    await this.completionRepository.delete({ courseId: numericId });
+    return await this.courseRepository.delete(numericId);
   }
+
+  // --- MÉTODOS DE USUARIOS Y API EXTERNA ---
 
   async findUsersBySucursal(sucursalId: string, query: string = '') {
     try {
+      const baseUrl = this.externalApiUrl.replace(/\/$/, '');
       const allUsersFound: UniversidadUser[] = [];
-      for (let page = 1; page <= 10; page++) {
-        const url = `${this.EXTERNAL_API_URL}/usuarios?q=${query}&take=50&page=${page}`;
+
+      // Ahora recorremos las páginas correctamente
+      for (let page = 1; page <= 2; page++) {
+        const url = `${baseUrl}/usuarios?q=${query}&take=50&page=${page}`;
+
+        this.logger.log(`Consultando API: ${url}`);
+
         const response = await axios.get<APIResponse>(url, {
-          headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
-          timeout: 10000,
+          headers: {
+            Authorization: `Bearer ${this.masterToken.trim()}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+          timeout: 5000,
         });
-        const data = response.data.data || [];
+
+        const data = response.data?.data || [];
         if (data.length === 0) break;
         allUsersFound.push(...data);
       }
 
       return allUsersFound
-        .filter((u) => String(u.sucursalId) === String(sucursalId))
+        .filter((u) => {
+          if (!sucursalId || ['0', 'undefined', 'null'].includes(sucursalId))
+            return true;
+          return String(u.sucursalId) === String(sucursalId);
+        })
         .map((u) => ({
           id: u.id,
-          name: `${u.nombre} ${u.apellido}`,
+          name: `${u.nombre} ${u.apellido}`.trim(),
           username: u.usuario,
-          sucursalNombre: u.sucursal?.nombre || 'Sin nombre',
+          sucursalNombre: u.sucursal?.nombre || 'Sin sucursal',
         }));
     } catch (error) {
+      this.logger.error(`Error conexión API Usuarios: ${error.message}`);
       return [];
     }
   }
 
-  // ACTUALIZADO: Función para asignar con búsqueda exhaustiva
   async assignUsersToCourse(courseId: string, userIds: number[]) {
-    // 1. Limpiar inscripciones previas
+    // Limpiamos inscripciones previas
     await this.enrollmentRepository.delete({ courseId: Number(courseId) });
-
     if (userIds.length === 0) return this.findAll();
 
-    // 2. Obtener datos de los usuarios desde la API externa
-    // Buscamos a los usuarios necesarios para tener sus nombres reales
+    // Buscamos los datos reales de los usuarios para guardar nombre y username (desnormalizado para velocidad)
     const usersData = await this.findSpecificUsersFromApi(userIds);
 
-    // 3. Crear nuevas inscripciones con los datos recuperados
     const newEnrollments = userIds.map((uId) => {
       const apiUser = usersData.find((u) => Number(u.id) === Number(uId));
-
       return this.enrollmentRepository.create({
         courseId: Number(courseId),
         userId: uId,
-        // Si no lo encuentra en la API, intentamos mantener lo que sea mejor que un ID solo
         userName: apiUser
           ? `${apiUser.nombre} ${apiUser.apellido}`.trim()
           : `USUARIO ${uId}`,
@@ -161,37 +177,110 @@ export class CoursesService {
     return this.findAll();
   }
 
-  // NUEVA FUNCIÓN AUXILIAR: Busca específicamente a los usuarios por ID o en varias páginas
   private async findSpecificUsersFromApi(
     ids: number[],
   ): Promise<UniversidadUser[]> {
     try {
+      const baseUrl = this.externalApiUrl.replace(/\/$/, '');
       const allRecovered: UniversidadUser[] = [];
 
-      // Consultamos las primeras páginas para encontrar a los usuarios
-      // Aumentamos a 5 páginas de 100 para cubrir más rango (500 usuarios)
       for (let page = 1; page <= 5; page++) {
-        const response = await axios.get<APIResponse>(
-          `${this.EXTERNAL_API_URL}/usuarios?take=100&page=${page}`,
-          { headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` } },
-        );
+        const url = `${baseUrl}/usuarios?take=100&page=${page}`;
+
+        const response = await axios.get<APIResponse>(url, {
+          headers: {
+            Authorization: `Bearer ${this.masterToken.trim()}`,
+            'ngrok-skip-browser-warning': 'true',
+          },
+        });
 
         const data = response.data.data || [];
         if (data.length === 0) break;
-
-        // Filtrar solo los que necesitamos para ahorrar memoria
         const matches = data.filter((u) => ids.includes(Number(u.id)));
         allRecovered.push(...matches);
-
-        // Si ya encontramos todos los que buscábamos, dejamos de pedir páginas
         if (allRecovered.length >= ids.length) break;
       }
-
       return allRecovered;
     } catch (e) {
-      this.logger.error('Error recuperando nombres de la API externa', e);
+      this.logger.error(`Error en findSpecificUsers: ${e.message}`);
       return [];
     }
+  }
+
+  // --- PROGRESO Y COMPLETITUD ---
+
+  async registerCompletion(data: RegisterCompletionData) {
+    const existing = await this.completionRepository.findOne({
+      where: { userId: Number(data.userId), courseId: Number(data.courseId) },
+    });
+    if (existing && existing.score >= 90) return existing;
+
+    const completion = this.completionRepository.create({
+      userId: Number(data.userId),
+      courseId: Number(data.courseId),
+      score: data.score,
+      survey: data.survey,
+    });
+    return await this.completionRepository.save(completion);
+  }
+
+  async findProgress(userId: number): Promise<number[]> {
+    const completions = await this.completionRepository.find({
+      where: { userId },
+    });
+    return completions.map((c) => Number(c.courseId));
+  }
+
+  async saveProgress(data: {
+    courseId: number;
+    userId: number;
+    viewedVideos: number[];
+    viewedPdfs: number[];
+    attempts: number;
+  }) {
+    let progress = await this.courseProgressRepository.findOne({
+      where: { courseId: Number(data.courseId), userId: Number(data.userId) },
+    });
+
+    if (!progress) {
+      progress = this.courseProgressRepository.create({
+        courseId: Number(data.courseId),
+        userId: Number(data.userId),
+        viewedVideos: [],
+        viewedPdfs: [],
+        attempts: 0,
+      });
+    }
+
+    progress.viewedVideos = data.viewedVideos;
+    progress.viewedPdfs = data.viewedPdfs;
+    progress.attempts = data.attempts;
+
+    return this.courseProgressRepository.save(progress);
+  }
+
+  async getProgress(userId: number, courseId: number) {
+    const progress = await this.courseProgressRepository.findOne({
+      where: { courseId: Number(courseId), userId: Number(userId) },
+    });
+
+    if (!progress) return { viewedVideos: [], viewedPdfs: [], attempts: 0 };
+    return {
+      viewedVideos: progress.viewedVideos || [],
+      viewedPdfs: progress.viewedPdfs || [],
+      attempts: progress.attempts || 0,
+    };
+  }
+
+  async getEnrolledStudents(courseId: string) {
+    const enrollments = await this.enrollmentRepository.find({
+      where: { courseId: Number(courseId) },
+    });
+    return enrollments.map((e) => ({
+      id: e.userId,
+      name: e.userName || `ID: ${e.userId}`,
+      username: e.userUsername || 'desconocido',
+    }));
   }
 
   async findCoursesByUser(userId: number): Promise<any[]> {
@@ -213,30 +302,11 @@ export class CoursesService {
     }));
   }
 
-  // CORREGIDO: Ahora retorna los datos directamente de tu tabla (más rápido y persistente)
-  async getEnrolledStudents(courseId: string) {
-    const enrollments = await this.enrollmentRepository.find({
-      where: { courseId: Number(courseId) },
-    });
+  // --- REPORTES Y ARCHIVOS ---
 
-    return enrollments.map((e) => ({
-      id: e.userId,
-      name: e.userName || `ID: ${e.userId}`,
-      username: e.userUsername || 'desconocido',
-    }));
-  }
-
-  async remove(id: string) {
-    const numericId = Number(id);
-    await this.enrollmentRepository.delete({ courseId: numericId });
-    await this.completionRepository.delete({ courseId: numericId });
-    return await this.courseRepository.delete(numericId);
-  }
   async getRealReportStats() {
     const enrollments = await this.enrollmentRepository.count();
     const completions = await this.completionRepository.find();
-
-    // 1. Obtenemos todos los cursos para cruzar los nombres por ID
     const cursos = await this.courseRepository.find();
 
     const rangos = [
@@ -252,49 +322,38 @@ export class CoursesService {
       if (rango) rango.cantidad++;
     });
 
-    const distribucion = rangos.map((r) => ({
-      ...r,
-      porcentaje:
-        completions.length > 0
-          ? Math.round((r.cantidad / completions.length) * 100)
-          : 0,
-    }));
-
     const cursosMap = new Map();
     completions.forEach((c) => {
-      // BUSCAMOS EL NOMBRE EN EL ARRAY DE CURSOS USANDO EL ID
       const cursoEncontrado = cursos.find((curso) => curso.id === c.courseId);
       const cursoNombre = cursoEncontrado?.nombre || 'Desconocido';
-
       if (!cursosMap.has(cursoNombre)) {
         cursosMap.set(cursoNombre, { suma: 0, count: 0, aprobados: 0 });
       }
-      const stats = cursosMap.get(cursoNombre);
-      stats.suma += c.score;
-      stats.count++;
-      if (c.score >= 60) stats.aprobados++;
+      const s = cursosMap.get(cursoNombre);
+      s.suma += c.score;
+      s.count++;
+      if (c.score >= 60) s.aprobados++;
     });
-
-    const rendimiento = Array.from(cursosMap.entries())
-      .map(([nombre, s]) => ({
-        curso: nombre,
-        promedio: Math.round(s.suma / s.count),
-        aprobados: s.aprobados,
-        reprobados: s.count - s.aprobados,
-      }))
-      .slice(0, 5);
 
     return {
       totalInscripciones: enrollments,
       totalCalificaciones: completions.length,
-      distribucion,
-      rendimiento,
+      distribucion: rangos.map((r) => ({
+        ...r,
+        porcentaje:
+          completions.length > 0
+            ? Math.round((r.cantidad / completions.length) * 100)
+            : 0,
+      })),
+      rendimiento: Array.from(cursosMap.entries())
+        .map(([nombre, s]) => ({
+          curso: nombre,
+          promedio: Math.round(s.suma / s.count),
+          aprobados: s.aprobados,
+          reprobados: s.count - s.aprobados,
+        }))
+        .slice(0, 5),
     };
-  }
-
-  async generateExcelReport(filters: any): Promise<Buffer> {
-    // Por ahora devuelve un buffer vacío para matar el error
-    return Buffer.from('');
   }
 
   async uploadFileToBlob(file: Express.Multer.File) {
@@ -305,5 +364,9 @@ export class CoursesService {
     } catch (error) {
       throw new Error('Error al procesar el almacenamiento.');
     }
+  }
+
+  async generateExcelReport(filters: any): Promise<Buffer> {
+    return Buffer.from('');
   }
 }

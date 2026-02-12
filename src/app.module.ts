@@ -13,6 +13,7 @@ import { ReportsService } from './reports/reports.service';
 import { CourseCompletion } from './courses/entities/course-completion.entity';
 import { CourseEnrollment } from './courses/entities/course-enrollment.entity';
 import { CourseSection } from './courses/entities/course-section.entity';
+import { CourseProgress } from './courses/entities/course-progress.entity';
 
 // Importaciones del módulo de Posts
 import { PostsModule } from './posts/posts.module';
@@ -23,28 +24,33 @@ import { Comment } from './posts/entities/comment.entity';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      envFilePath: ['.env.local', '.env'],
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const isProduction = config.get('NODE_ENV') === 'production';
-        const shouldSSl = isProduction || config.get('DB_SSL') === 'true';
+        // DETECCIÓN INTELIGENTE DE ENTORNO
+        const isVercel = config.get('VERCEL') === '1' || !!process.env.VERCEL;
+        const isProduction =
+          config.get('NODE_ENV') === 'production' || isVercel;
 
+        // Si estamos en Vercel, forzamos SSL. Si estamos en local, usamos lo que diga el .env
+        const shouldSSl = isVercel || config.get('DB_SSL') === 'true';
         return {
           type: 'postgres',
-          host: config.get<string>('DB_HOST'),
-          port: config.get<number>('DB_PORT', 5432),
-          username: config.get<string>('DB_USER'),
-          password: config.get<string>('DB_PASSWORD'),
-          database: config.get<string>('DB_NAME'),
+          host: isVercel ? config.get<string>('DB_HOST') : 'localhost',
+          port: isVercel ? config.get<number>('DB_PORT') : 5433, // Tu puerto local 5433
+          username: isVercel ? config.get<string>('DB_USER') : 'postgres',
+          password: isVercel ? config.get<string>('DB_PASSWORD') : '123',
+          database: isVercel ? config.get<string>('DB_NAME') : 'universidad_db',
           entities: [
             User,
             Course,
             CourseSection,
             CourseCompletion,
             CourseEnrollment,
+            CourseProgress,
             Post,
             Comment,
           ],
@@ -68,6 +74,7 @@ import { Comment } from './posts/entities/comment.entity';
       Course,
       CourseCompletion,
       CourseEnrollment,
+      CourseProgress,
       Post,
       Comment,
     ]),

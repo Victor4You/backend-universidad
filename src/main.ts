@@ -22,9 +22,15 @@ function setupApp(instance: INestApplication): void {
   instance.use(cookieParser());
   instance.setGlobalPrefix('v1');
 
+  const isVercel =
+    !!process.env.VERCEL || process.env.NODE_ENV === 'production';
   // AJUSTE DE CORS PARA VERCEL
   instance.enableCors({
     origin: (origin, callback) => {
+      if (!isVercel) {
+        return callback(null, true);
+      }
+
       const allowedOrigins = [
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
@@ -47,6 +53,7 @@ function setupApp(instance: INestApplication): void {
       'Authorization',
       'Accept',
       'X-Requested-With',
+      'ngrok-skip-browser-warning',
     ],
     exposedHeaders: ['Set-Cookie'], // IMPORTANTE: Para que el navegador vea las cookies en Vercel
   });

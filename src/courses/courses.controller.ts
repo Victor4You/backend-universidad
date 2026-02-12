@@ -5,7 +5,6 @@ import {
   Patch,
   Delete,
   Body,
-  Header,
   Param,
   UseInterceptors,
   UploadedFile,
@@ -16,53 +15,35 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CoursesService, RegisterCompletionData } from './courses.service';
 import { Course } from './entities/course.entity';
-import { ReportsService } from '../reports/reports.service';
 import * as Express from 'express';
 
 @Controller('courses')
 export class CoursesController {
   constructor(
     private readonly coursesService: CoursesService,
-    private readonly reportsService: ReportsService,
+    // SE ELIMINÓ ReportsService de aquí porque no existe y bloquea la App
   ) {}
 
-  // CAMBIO CLAVE: Usamos @Post porque tus logs muestran que el Front envía un POST
-  // Mantenemos la lógica de filtros y el buffer intactos.
-  @Post('export')
-  async export(@Res() res: Express.Response, @Body() filters: any) {
-    try {
-      const format = filters.format || 'excel';
-      const buffer = await this.reportsService.generateFile(format, filters);
+  // --- NUEVOS MÉTODOS DE PROGRESO (Para que los checks funcionen) ---
 
-      const contentTypes: Record<string, string> = {
-        pdf: 'application/pdf',
-        excel:
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        csv: 'text/csv',
-      };
-
-      res.set({
-        'Content-Type': contentTypes[format] || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="reporte-${Date.now()}.${format}"`,
-        'Content-Length': buffer.length,
-      });
-
-      res.send(buffer);
-    } catch (error) {
-      console.error('Error exportando reporte:', error);
-      res.status(500).json({ message: error.message });
-    }
-  }
-
-  // ... (Tus otras rutas se mantienen exactamente igual)
-  @Get('enrolled/:userId')
-  async findCoursesByUser(@Param('userId', ParseIntPipe) userId: number) {
-    return this.coursesService.findCoursesByUser(userId);
+  @Post('save-progress')
+  async saveProgress(@Body() data: any) {
+    return this.coursesService.saveProgress(data);
   }
 
   @Get('user-progress')
-  async findProgress(@Query('userId', ParseIntPipe) userId: number) {
-    return this.coursesService.findProgress(userId);
+  async getProgress(
+    @Query('userId', ParseIntPipe) userId: number,
+    @Query('courseId', ParseIntPipe) courseId: number,
+  ) {
+    return this.coursesService.getProgress(userId, courseId);
+  }
+
+  // --- MÉTODOS EXISTENTES MANTENIDOS ---
+
+  @Get('enrolled/:userId')
+  async findCoursesByUser(@Param('userId', ParseIntPipe) userId: number) {
+    return this.coursesService.findCoursesByUser(userId);
   }
 
   @Get('users/sucursal/:sucursalId')
@@ -115,17 +96,6 @@ export class CoursesController {
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.coursesService.remove(id);
-  }
-
-  @Post('export-report')
-  async exportReport(@Body() body: any, @Res() res: Express.Response) {
-    const buffer = await this.coursesService.generateExcelReport(body);
-    res.set({
-      'Content-Type':
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Length': buffer.length,
-    });
-    res.send(buffer);
   }
 
   @Get('reports/stats')

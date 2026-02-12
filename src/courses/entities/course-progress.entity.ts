@@ -6,7 +6,6 @@ import {
 } from 'typeorm';
 
 @Entity('course_progress')
-// ASEGÚRATE DE QUE DIGA: export class CourseProgress
 export class CourseProgress {
   @PrimaryGeneratedColumn()
   id: number;
@@ -14,15 +13,18 @@ export class CourseProgress {
   @Column()
   userId: number;
 
-  @Column()
-  courseId: string;
-
-  @Column('float', { nullable: true })
-  score: number;
+  @Column() // Cambiado de string a number para coincidir con el controlador
+  courseId: number;
 
   @Column('jsonb', { nullable: true })
-  survey: any;
+  viewedVideos: number[];
+
+  @Column('jsonb', { nullable: true })
+  viewedPdfs: number[];
+
+  @Column({ default: 0 })
+  attempts: number;
 
   @CreateDateColumn()
-  completedAt: Date;
+  updatedAt: Date;
 }

@@ -10,7 +10,7 @@ import { CourseSection } from './entities/course-section.entity';
 import { CourseEnrollment } from './entities/course-enrollment.entity';
 import { ReportsService } from '../reports/reports.service';
 import { User } from '../users/user.entity';
-
+import { CourseProgress } from './entities/course-progress.entity'; // <-- Importación correcta
 @Module({
   imports: [
     // 2. La agregamos aquí para que TypeORM cree la tabla en la DB
@@ -20,6 +20,7 @@ import { User } from '../users/user.entity';
       CourseCompletion,
       CourseSection,
       CourseEnrollment,
+      CourseProgress,
       User,
     ]),
   ],
