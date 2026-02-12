@@ -16,10 +16,10 @@ export class CourseProgress {
   @Column() // Cambiado de string a number para coincidir con el controlador
   courseId: number;
 
-  @Column('jsonb', { nullable: true })
+  @Column({ type: 'json', nullable: true, default: [] })
   viewedVideos: number[];
 
-  @Column('jsonb', { nullable: true })
+  @Column({ type: 'json', nullable: true, default: [] })
   viewedPdfs: number[];
 
   @Column({ default: 0 })

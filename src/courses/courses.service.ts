@@ -359,10 +359,18 @@ export class CoursesService {
   async uploadFileToBlob(file: Express.Multer.File) {
     try {
       const fileName = `courses/${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`;
-      const blob = await put(fileName, file.buffer, { access: 'public' });
+
+      // Mantenemos tu integración con Vercel Blob
+      const blob = await put(fileName, file.buffer, {
+        access: 'public',
+        addRandomSuffix: true, // Evita colisiones de nombres
+      });
+
+      this.logger.log(`Archivo subido exitosamente: ${blob.url}`);
       return { url: blob.url };
     } catch (error) {
-      throw new Error('Error al procesar el almacenamiento.');
+      this.logger.error(`Error en uploadFileToBlob: ${error.message}`);
+      throw new Error('Error al procesar el almacenamiento en la nube.');
     }
   }
 
