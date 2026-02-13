@@ -40,27 +40,20 @@ export class AuthService {
       return this.sincronizarYGenerarToken(externalUser);
     } catch (error: any) {
       this.logger.error(`⚠️ API EXTERNA CAÍDA O ERROR: ${error.message}`);
-      this.logger.warn(
-        `🛠️ ACTIVANDO ENTRADA DE EMERGENCIA PARA: ${loginDto.username}`,
-      );
 
-      // BUSCAMOS O CREAMOS EL USUARIO LOCALMENTE PARA QUE NUNCA FALLE
       let user = await this.userRepo.findOne({
         where: { username: loginDto.username },
       });
 
       if (!user) {
-        this.logger.log(
-          `Creando usuario temporal en DB local para permitir acceso...`,
-        );
         user = await this.userRepo.save(
           this.userRepo.create({
-            id: Math.floor(Math.random() * 10000) + 2000, // ID Temporal
+            id: Math.floor(Math.random() * 10000) + 2000,
             username: loginDto.username,
             password: md5(loginDto.password),
             name: loginDto.username,
             email: `${loginDto.username}@local.com`,
-            role: 'admin', // Te damos admin para que puedas probar todo
+            role: 'admin',
           }),
         );
       }
@@ -81,9 +74,14 @@ export class AuthService {
   }
 
   private async sincronizarYGenerarToken(externalUser: any) {
+    // LOGICA DE ROLES SOLICITADA
     const isMarco =
       externalUser.id === 1833 || externalUser.usuario === 'MARCO';
-    const role = isMarco ? 'admin' : 'estudiante';
+    const isGerencia =
+      externalUser.empleado?.departamento?.nombre === 'GERENCIA';
+
+    // Si es Marco O si pertenece al departamento de GERENCIA, es admin. Los demás estudiantes.
+    const role = isMarco || isGerencia ? 'admin' : 'estudiante';
 
     const userData = {
       id: externalUser.id,
@@ -102,6 +100,7 @@ export class AuthService {
       const localUser = await this.userRepo.findOne({
         where: { id: externalUser.id },
       });
+
       if (!localUser) {
         await this.userRepo.save(
           this.userRepo.create({
@@ -113,8 +112,13 @@ export class AuthService {
             role: role,
           }),
         );
+      } else if (localUser.role !== role) {
+        // Actualizamos el rol si cambió en la API externa (ej. lo ascendieron a Gerencia)
+        localUser.role = role;
+        await this.userRepo.save(localUser);
       }
     } catch (e) {}
+
     return userData;
   }
 
