@@ -119,7 +119,47 @@ export class AuthService {
   }
 
   async getUserProfile(username: string) {
-    return this.userRepo.findOne({ where: { username } });
+    try {
+      // 1. Intentamos obtener los datos COMPLETOS de la API externa (los que viste en Postman)
+      const url = `${this.EXTERNAL_API_URL}/usuarios/usuario/${username}`;
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
+        timeout: 5000,
+      });
+
+      if (response.data) {
+        // 2. Si la API responde, le añadimos el rol que tenemos en nuestra DB local
+        // para mantener la lógica de permisos de tu universidad.
+        const localUser = await this.userRepo.findOne({ where: { username } });
+
+        return {
+          ...response.data, // Aquí van nombre, apellido, empleado, etc.
+          role: localUser?.role || 'estudiante',
+          avatar: localUser?.avatar || null, // Si tienes avatar en Neon, lo usamos
+        };
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error al conectar con API externa para perfil: ${error.message}`,
+      );
+    }
+
+    // 3. FALLBACK: Si la API externa está caída, devolvemos lo que tengamos en Neon
+    // con una estructura mínima para que el diseño no se rompa (guiones).
+    const user = await this.userRepo.findOne({ where: { username } });
+    if (!user) return null;
+
+    return {
+      id: user.id,
+      nombre: user.name,
+      usuario: user.username,
+      email: user.email,
+      role: user.role,
+      empleado: {
+        sucursalActiva: { nombre: 'Dato local' },
+        departamento: { nombre: 'Dato local' },
+      },
+    };
   }
   async getUsersBySucursal(id: string) {
     return [];
