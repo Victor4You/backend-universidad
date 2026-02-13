@@ -120,46 +120,46 @@ export class AuthService {
 
   async getUserProfile(username: string) {
     try {
-      // 1. Intentamos obtener los datos COMPLETOS de la API externa (los que viste en Postman)
+      // Usamos la variable de entorno que acabas de configurar en Vercel
       const url = `${this.EXTERNAL_API_URL}/usuarios/usuario/${username}`;
+
       const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${this.MASTER_TOKEN.trim()}` },
-        timeout: 5000,
+        headers: {
+          Authorization: `Bearer ${this.MASTER_TOKEN.trim()}`,
+          'ngrok-skip-browser-warning': 'true', // IMPORTANTE: evita que ngrok bloquee a Vercel
+        },
+        timeout: 8000,
       });
 
       if (response.data) {
-        // 2. Si la API responde, le añadimos el rol que tenemos en nuestra DB local
-        // para mantener la lógica de permisos de tu universidad.
+        // Sincronizamos con el rol local de Neon
         const localUser = await this.userRepo.findOne({ where: { username } });
 
         return {
-          ...response.data, // Aquí van nombre, apellido, empleado, etc.
+          ...response.data,
           role: localUser?.role || 'estudiante',
-          avatar: localUser?.avatar || null, // Si tienes avatar en Neon, lo usamos
+          // Aseguramos que 'usuario' y 'username' existan para el Front
+          usuario: response.data.usuario || username,
+          nombre: response.data.nombre || localUser?.name,
         };
       }
-    } catch (error) {
-      this.logger.error(
-        `Error al conectar con API externa para perfil: ${error.message}`,
-      );
+    } catch (error: any) {
+      this.logger.error(`Error en Vercel consultando perfil: ${error.message}`);
+
+      // Si la API externa falla, devolvemos los datos de Neon para que la página no se quede en blanco
+      const user = await this.userRepo.findOne({ where: { username } });
+      if (!user) return null;
+
+      return {
+        ...user,
+        nombre: user.name,
+        usuario: user.username,
+        empleado: {
+          email: user.email,
+          sucursalActiva: { nombre: 'Modo Offline' },
+        },
+      };
     }
-
-    // 3. FALLBACK: Si la API externa está caída, devolvemos lo que tengamos en Neon
-    // con una estructura mínima para que el diseño no se rompa (guiones).
-    const user = await this.userRepo.findOne({ where: { username } });
-    if (!user) return null;
-
-    return {
-      id: user.id,
-      nombre: user.name,
-      usuario: user.username,
-      email: user.email,
-      role: user.role,
-      empleado: {
-        sucursalActiva: { nombre: 'Dato local' },
-        departamento: { nombre: 'Dato local' },
-      },
-    };
   }
   async getUsersBySucursal(id: string) {
     return [];
