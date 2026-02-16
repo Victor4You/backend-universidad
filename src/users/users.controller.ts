@@ -16,6 +16,11 @@ export class UsersController {
     return user;
   }
 
+  @Get('instructors')
+  async getInstructors(): Promise<any[]> {
+    return await this.authService.getInstructors();
+  }
+
   @Get('search/:term')
   async searchUsers(@Param('term') term: string): Promise<any[]> {
     return await this.authService.searchUsersPartial(term);

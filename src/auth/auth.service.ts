@@ -165,6 +165,65 @@ export class AuthService {
       };
     }
   }
+
+  async getInstructors() {
+    try {
+      // 1. Buscamos todos los usuarios que son 'admin' en nuestra DB local (Neon)
+      const admins = await this.userRepo.find({ where: { role: 'admin' } });
+
+      // 2. Para cada admin, intentamos traer sus datos enriquecidos de la API externa
+      const detailedAdmins = await Promise.all(
+        admins.map(async (admin) => {
+          try {
+            const extUrl = `${this.EXTERNAL_API_URL}/usuarios/usuario/${admin.username}`;
+            const response = await axios.get(extUrl, {
+              headers: {
+                Authorization: `Bearer ${this.MASTER_TOKEN.trim()}`,
+                'ngrok-skip-browser-warning': 'true',
+              },
+              timeout: 4000,
+            });
+
+            const extData = response.data;
+            // Retornamos un objeto compatible con la interfaz del Front
+            return {
+              id: admin.id,
+              nombre: `${extData.nombre} ${extData.apellido}` || admin.name,
+              especialidad:
+                extData.empleado?.perfilSalario?.perfil || 'ADMINISTRATIVO',
+              email: extData.empleado?.email || admin.email,
+              telefono: extData.empleado?.celular || 'No disponible',
+              experiencia:
+                extData.empleado?.sucursalActiva?.nombre || 'Sede Central', // Usamos sucursal como experiencia/ubicación
+              cursos: 0, // Dato local que podrías conectar después
+              avatar: extData.avatar || null,
+              estado: 'activo' as const,
+              username: admin.username,
+            };
+          } catch (e) {
+            // Si falla la API externa para un usuario, devolvemos lo que tenemos en local
+            return {
+              id: admin.id,
+              nombre: admin.name,
+              especialidad: 'INSTRUCTOR',
+              email: admin.email,
+              telefono: 'No disponible',
+              experiencia: 'Colaborador',
+              cursos: 0,
+              avatar: null,
+              estado: 'activo' as const,
+              username: admin.username,
+            };
+          }
+        }),
+      );
+
+      return detailedAdmins;
+    } catch (error) {
+      this.logger.error(`Error obteniendo instructores: ${error.message}`);
+      return [];
+    }
+  }
   async getUsersBySucursal(id: string) {
     return [];
   }
