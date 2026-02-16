@@ -11,22 +11,31 @@ export class UserProgress {
   @Column()
   courseId: string;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'int', default: 0 })
   score: number;
 
   @Column({ default: 'active' })
-  status: string; // 'active' | 'expired'
+  status: string;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamp', nullable: true })
   fechaCertificacion: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: 'timestamp', nullable: true })
   fechaVencimiento: Date;
 
-  // Datos de Calidad (KPIs)
-  @Column({ type: 'float' })
+  @Column({ type: 'float', default: 0 })
   calidadInstructor: number;
 
-  @Column({ type: 'float' })
+  @Column({ type: 'float', default: 0 })
   utilidadContenido: number;
+
+  // NUEVAS COLUMNAS PARA EL PROGRESO
+  @Column({ nullable: true })
+  seccionId: string;
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  videosVistos: any[];
+
+  @Column({ type: 'jsonb', nullable: true, default: [] })
+  pdfsLeidos: any[];
 }
