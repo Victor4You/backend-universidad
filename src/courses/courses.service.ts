@@ -104,10 +104,40 @@ export class CoursesService {
 
   async remove(id: string) {
     const numericId = Number(id);
-    // CORRECCIÓN: Usar el nombre de columna exacto de la DB
-    await this.enrollmentRepository.delete({ courseId: numericId });
-    await this.completionRepository.delete({ courseId: numericId });
-    return await this.courseRepository.delete(numericId);
+
+    try {
+      this.logger.log(`Eliminando dependencias del curso ID: ${numericId}`);
+
+      // TRUCO: Usamos comillas dobles con el nombre en minúscula para obligar a Postgres
+      // a usar la columna correcta tanto en Local como en Vercel.
+      await this.enrollmentRepository
+        .createQueryBuilder()
+        .delete()
+        .where('"courseid" = :id', { id: numericId })
+        .execute();
+
+      await this.completionRepository
+        .createQueryBuilder()
+        .delete()
+        .where('"courseid" = :id', { id: numericId })
+        .execute();
+
+      await this.courseProgressRepository
+        .createQueryBuilder()
+        .delete()
+        .where('"courseid" = :id', { id: numericId })
+        .execute();
+
+      // Finalmente borramos el curso principal
+      const result = await this.courseRepository.delete(numericId);
+
+      this.logger.log(`Curso ${numericId} eliminado exitosamente.`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error al eliminar curso: ${error.message}`);
+      // No lanzamos un error genérico, pasamos el error real para depurar
+      throw new Error(`No se pudo eliminar: ${error.message}`);
+    }
   }
   // --- MÉTODOS DE USUARIOS Y API EXTERNA ---
 

@@ -51,6 +51,7 @@ function setupApp(instance: INestApplication): void {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
+      'x-user-username',
       'Accept',
       'X-Requested-With',
       'ngrok-skip-browser-warning',

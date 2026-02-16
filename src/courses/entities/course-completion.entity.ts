@@ -11,10 +11,10 @@ export class CourseCompletion {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ name: 'userid' }) // Forzamos minúscula para evitar errores en Postgres
   userId: number;
 
-  @Column({ type: 'integer', nullable: true }) // Añadir nullable: true y especificar type
+  @Column({ name: 'courseid', type: 'integer', nullable: true }) // Añadir nullable: true y especificar type
   courseId: number; // Cambiar de string a number para consistencia
 
   @Column({ type: 'float', nullable: true })
@@ -23,6 +23,6 @@ export class CourseCompletion {
   @Column({ type: 'jsonb', nullable: true })
   survey: any;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'completedat' })
   completedAt: Date;
 }

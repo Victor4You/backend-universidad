@@ -1,6 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
 import { CourseEnrollment } from './course-enrollment.entity';
 import { CourseSection } from './course-section.entity';
+import { CreateDateColumn } from 'typeorm';
 
 @Entity('courses')
 export class Course {
@@ -42,6 +43,9 @@ export class Course {
 
   @Column({ default: 30 })
   duracionExamen: number;
+
+  @CreateDateColumn()
+  createdAt: Date;
 
   @OneToMany(() => CourseEnrollment, (enrollment) => enrollment.course)
   estudiantesInscritos: CourseEnrollment[];

@@ -10,21 +10,22 @@ export class CourseProgress {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
+  @Column({ name: 'userid' })
   userId: number;
 
-  @Column() // Cambiado de string a number para coincidir con el controlador
+  @Column({ name: 'courseid', type: 'integer' })
   courseId: number;
 
-  @Column({ type: 'json', nullable: true, default: [] })
+  // Cambiamos 'json' por 'jsonb' que es el estándar de Postgres/Neon
+  @Column({ type: 'jsonb', nullable: true, default: [] })
   viewedVideos: number[];
 
-  @Column({ type: 'json', nullable: true, default: [] })
+  @Column({ type: 'jsonb', nullable: true, default: [] })
   viewedPdfs: number[];
 
   @Column({ default: 0 })
   attempts: number;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'updatedat' }) // Forzamos minúscula aquí también
   updatedAt: Date;
 }

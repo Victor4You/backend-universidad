@@ -11,6 +11,8 @@ import {
   Query,
   ParseIntPipe,
   Res,
+  Headers, // Añadido para recibir el username del cliente
+  ForbiddenException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CoursesService, RegisterCompletionData } from './courses.service';
@@ -94,7 +96,20 @@ export class CoursesController {
   }
 
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(
+    @Param('id') id: string,
+    @Headers('x-user-username') username?: string, // Recibimos el username desde el Front
+  ) {
+    // CANDADO DE SEGURIDAD: Solo ZAK y MARCO pueden borrar
+    const allowedUsers = ['ZAK', 'MARCO'];
+
+    // Convertimos a mayúsculas para evitar errores de escritura
+    if (!username || !allowedUsers.includes(username.toUpperCase())) {
+      throw new ForbiddenException(
+        `El usuario "${username || 'Desconocido'}" no tiene permisos para eliminar cursos.`,
+      );
+    }
+
     return this.coursesService.remove(id);
   }
 
