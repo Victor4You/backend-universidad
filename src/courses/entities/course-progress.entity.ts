@@ -3,6 +3,7 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 
 @Entity('course_progress')
@@ -13,19 +14,25 @@ export class CourseProgress {
   @Column({ name: 'userid' })
   userId: number;
 
-  @Column({ name: 'courseid', type: 'integer' })
+  @Column({ name: 'courseid' })
   courseId: number;
 
-  // Cambiamos 'json' por 'jsonb' que es el estándar de Postgres/Neon
-  @Column({ type: 'jsonb', nullable: true, default: [] })
+  // Forzamos el nombre físico a minúsculas para evitar errores de CamelCase en Neon
+  @Column({ name: 'viewedvideos', type: 'jsonb', nullable: true, default: [] })
   viewedVideos: number[];
 
-  @Column({ type: 'jsonb', nullable: true, default: [] })
+  @Column({ name: 'viewedpdfs', type: 'jsonb', nullable: true, default: [] })
   viewedPdfs: number[];
 
-  @Column({ default: 0 })
+  @Column({ name: 'attempts', default: 0 })
   attempts: number;
 
-  @CreateDateColumn({ name: 'updatedat' }) // Forzamos minúscula aquí también
+  @Column({ name: 'seccionid', nullable: true })
+  seccionId: string;
+
+  @CreateDateColumn({ name: 'createdat' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updatedat' })
   updatedAt: Date;
 }
