@@ -26,15 +26,14 @@ export class ReportsService {
 
   async generateFile(format: string, filters: any): Promise<Buffer> {
     const { start, end, label } = this.calculateDateRange(filters);
-    const categorias = filters.categorias || filters.categories || [];
+
+    // 1. Unificamos todas las posibles formas en que llegue el array desde el front
+    const categorias =
+      filters.dataTypes || filters.categorias || filters.categories || [];
     const reportData: any = { label, sections: {} };
 
-    // 1. CARGA DE DATOS MAESTROS
+    // 2. CARGA DE DATOS MAESTROS (Se mantiene igual)
     const rawUsers = await this.userRepo.find();
-
-    // UNIFICACIÓN DE ALUMNOS MEJORADA:
-    // Solo filtramos si el nombre es EXACTAMENTE igual y no es nulo.
-    // Si no tienen nombre, usamos el ID para que no se eliminen entre sí.
     const allUsers = rawUsers.filter(
       (user, index, self) =>
         index ===
@@ -52,65 +51,39 @@ export class ReportsService {
       relations: ['course'],
     });
 
-    // 2. MATRÍCULAS (Garantizamos que aparezcan TODOS los alumnos del sistema)
-    if (categorias.includes('matriculas')) {
-      reportData.sections['Matrículas'] = allUsers.map((user) => {
-        // Búsqueda de inscripciones (por ID o por Nombre para el caso 9742)
-        const userEnrollments = allEnrollments.filter((e) => {
-          const matchId = String(e.userId).trim() === String(user.id).trim();
-          const matchNombre =
-            user.name &&
-            e.userName?.trim().toUpperCase() === user.name.trim().toUpperCase();
-          return matchId || matchNombre;
-        });
+    // 3. MATRÍCULAS / INSCRIPCIONES
+    // Añadimos 'inscripciones' a la condición
+    if (
+      categorias.includes('matriculas') ||
+      categorias.includes('inscripciones')
+    ) {
+      reportData.sections['Inscripciones y Matrículas'] = allUsers.map(
+        (user) => {
+          const userEnrollments = allEnrollments.filter((e) => {
+            const matchId = String(e.userId).trim() === String(user.id).trim();
+            const matchNombre =
+              user.name &&
+              e.userName?.trim().toUpperCase() ===
+                user.name.trim().toUpperCase();
+            return matchId || matchNombre;
+          });
 
-        const isInscribed = userEnrollments.length > 0;
+          const isInscribed = userEnrollments.length > 0;
+          const nombresCursos = isInscribed
+            ? Array.from(
+                new Set(
+                  userEnrollments.map((e) => e.course?.nombre || 'Curso'),
+                ),
+              ).join(', ')
+            : 'N/A';
 
-        // Nombres de cursos únicos
-        const nombresCursos = isInscribed
-          ? Array.from(
-              new Set(userEnrollments.map((e) => e.course?.nombre || 'Curso')),
-            ).join(', ')
-          : 'N/A';
-
-        return {
-          ALUMNO: user.name || user.username || `Usuario ID: ${user.id}`,
-          ESTADO: isInscribed ? 'Inscrito' : 'No inscrito',
-          CURSOS: nombresCursos,
-        };
-      });
-    }
-
-    // 3. EVALUACIONES (Mantenemos la lógica que ya te funcionó)
-    if (categorias.includes('evaluaciones')) {
-      const completions = await this.completionRepo.find({
-        where: { completedAt: Between(start, end) },
-      });
-      const allEnrollments = await this.enrollmentRepo.find();
-
-      reportData.sections['Evaluaciones'] = completions.map((c) => {
-        let userMatch = allUsers.find(
-          (u) => String(u.id).trim() === String(c.userId).trim(),
-        );
-        let nombreFinal = userMatch?.name;
-
-        if (!nombreFinal) {
-          const backup = allEnrollments.find(
-            (e) => String(e.userId).trim() === String(c.userId).trim(),
-          );
-          nombreFinal = backup?.userName || `ID: ${c.userId}`;
-        }
-
-        const courseMatch = allCourses.find(
-          (co) => String(co.id).trim() === String(c.courseId).trim(),
-        );
-
-        return {
-          ALUMNO: nombreFinal,
-          CURSO: courseMatch?.nombre || 'Curso terminado',
-          CALIFICACION: c.score !== null ? `${c.score}` : '0',
-        };
-      });
+          return {
+            ALUMNO: user.name || user.username || `Usuario ID: ${user.id}`,
+            ESTADO: isInscribed ? 'Inscrito' : 'No inscrito',
+            CURSOS: nombresCursos,
+          };
+        },
+      );
     }
 
     // --- REPETIR ESTA LÓGICA DE BÚSQUEDA PARA CALIFICACIONES Y ASISTENCIAS ---
@@ -133,8 +106,12 @@ export class ReportsService {
       });
     }
 
+    // 4. VALIDACIÓN FINAL
     if (Object.keys(reportData.sections).length === 0) {
-      throw new NotFoundException('No se encontraron registros.');
+      // Si llegamos aquí es porque el array 'categorias' no traía nada que reconozcamos
+      throw new NotFoundException(
+        `No se reconoció la categoría: ${categorias.join(', ')}`,
+      );
     }
 
     return format === 'pdf'

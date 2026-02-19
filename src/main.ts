@@ -27,23 +27,23 @@ function setupApp(instance: INestApplication): void {
   // AJUSTE DE CORS PARA VERCEL
   instance.enableCors({
     origin: (origin, callback) => {
-      if (!isVercel) {
+      // Si no hay origen (como Postman) o no estamos en Vercel (local), permitir siempre
+      if (!origin || !isVercel) {
         return callback(null, true);
       }
 
       const allowedOrigins = [
         'https://universidad-puropollo2.vercel.app',
         'http://localhost:3000',
+        'http://localhost:3001',
       ];
-      // Permitimos explícitamente cualquier subdominio de vercel.app
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        origin.endsWith('.vercel.app')
-      ) {
+
+      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
         callback(null, true);
       } else {
-        callback(null, false); // No lances error, solo retorna falso
+        // Para debug en desarrollo, puedes usar callback(null, true)
+        // pero para producción esto es lo correcto:
+        callback(null, false);
       }
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
@@ -51,12 +51,12 @@ function setupApp(instance: INestApplication): void {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'x-user-username',
       'Accept',
       'X-Requested-With',
+      'x-user-username',
       'ngrok-skip-browser-warning',
     ],
-    exposedHeaders: ['Set-Cookie'], // IMPORTANTE: Para que el navegador vea las cookies en Vercel
+    exposedHeaders: ['Set-Cookie'],
   });
 }
 

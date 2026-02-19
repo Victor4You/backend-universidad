@@ -11,13 +11,22 @@ import {
 import { ReportsService } from './reports.service';
 import type { Response } from 'express';
 
+// Definimos una interfaz para evitar el uso de 'any' y corregir los errores de ESLint
+interface ExportReportDto {
+  format: string;
+  range?: string;
+  includeCharts?: boolean;
+  includeDetails?: boolean;
+  dataTypes?: string[];
+  categorias?: string[];
+}
+
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post('export')
-  async exportReport(@Body() exportDto: any, @Res() res: Response) {
-    
+  async exportReport(@Body() exportDto: ExportReportDto, @Res() res: Response) {
     try {
       const { format } = exportDto;
       const buffer = await this.reportsService.generateFile(format, exportDto);
@@ -51,14 +60,20 @@ export class ReportsController {
       });
 
       return res.send(buffer);
-    } catch (error) {
+    } catch (error: unknown) {
       // Manejo dinámico de excepciones de NestJS
       if (error instanceof HttpException) {
         return res.status(error.getStatus()).json(error.getResponse());
       }
 
+      // Tipamos el error para acceder de forma segura a .message
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Error interno al generar el archivo';
+
       return res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
-        message: 'Error interno al generar el archivo',
+        message: errorMessage,
       });
     }
   }

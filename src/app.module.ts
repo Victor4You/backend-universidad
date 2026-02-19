@@ -2,18 +2,18 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module'; // Importa el nuevo módulo
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { AuthController } from './auth/auth.controller';
-import { AuthService } from './auth/auth.service';
+
 import { UsersController } from './users/users.controller';
 import { CoursesModule } from './courses/courses.module';
-import { ReportsController } from './reports/reports.controller';
+
 import { User } from './users/user.entity';
 import { Course } from './courses/entities/course.entity';
-import { ReportsService } from './reports/reports.service';
+
 import { CourseCompletion } from './courses/entities/course-completion.entity';
 import { CourseEnrollment } from './courses/entities/course-enrollment.entity';
 import { CourseSection } from './courses/entities/course-section.entity';
 import { CourseProgress } from './courses/entities/course-progress.entity';
+import { ReportsModule } from './reports/reports.module';
 
 // Importaciones del módulo de Posts
 import { PostsModule } from './posts/posts.module';
@@ -81,8 +81,9 @@ import { Comment } from './posts/entities/comment.entity';
     AuthModule,
     CoursesModule,
     PostsModule,
+    ReportsModule,
   ],
-  controllers: [UsersController, ReportsController],
-  providers: [ReportsService],
+  controllers: [UsersController],
+  providers: [],
 })
 export class AppModule {}
